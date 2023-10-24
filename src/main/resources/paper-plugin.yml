@@ -1,0 +1,7 @@
+name: GrandTheftMinecraft
+version: '${project.version}'
+main: de.chefexperte.grandtheftminecraft.GrandTheftMinecraft
+api-version: '1.20'
+prefix: GTM
+authors: [ChefExperte]
+website: chefexperte.de
