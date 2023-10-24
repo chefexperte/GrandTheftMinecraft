@@ -1,0 +1,9 @@
+{
+  "gtm.deagle": {
+    "category": "master",
+    "sounds": [
+      "deagle"
+    ],
+    "subtitle": "subtitles.gtm.deagle.shot"
+  }
+}
