@@ -2,6 +2,7 @@ package de.chefexperte.grandtheftminecraft.events;
 
 import de.chefexperte.grandtheftminecraft.GrandTheftMinecraft;
 import de.chefexperte.grandtheftminecraft.Guns;
+import de.chefexperte.grandtheftminecraft.Util;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import org.bukkit.Location;
@@ -10,7 +11,6 @@ import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.block.data.type.Fire;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -26,7 +26,9 @@ import org.bukkit.util.BlockIterator;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Objects;
+import java.util.PriorityQueue;
 
 public class GunEvents implements Listener {
     @EventHandler
@@ -34,16 +36,16 @@ public class GunEvents implements Listener {
         if (e.getAction().isRightClick()) {
             if (isGun(e.getItem())) {
                 World world = e.getPlayer().getWorld();
-                Vector right = e.getPlayer().getLocation().getDirection().rotateAroundAxis(new Vector(0, 1, 0), 80).multiply(0.35);
-                Vector front = e.getPlayer().getLocation().getDirection().multiply(0.55);
-                Vector down = new Vector(0, -0.2, 0);
+                Vector right = e.getPlayer().getLocation().getDirection().rotateAroundAxis(new Vector(0, 1, 0), 85).multiply(0.32);
+                Vector front = e.getPlayer().getLocation().getDirection().multiply(0.52);
+                Vector down = new Vector(0, -0.18, 0);
                 Location gunLocation = e.getPlayer().getEyeLocation().add(right).add(front).add(down);
 
                 if (getGunFromItem(e.getItem()) == Guns.DESERT_EAGLE) {
                     // shoot using invisible arrow
                     Arrow a = shootBullet(e.getPlayer(), gunLocation, Guns.DESERT_EAGLE);
                     // play gun effects
-                    playNormalGunEffects(gunLocation, a, Guns.DESERT_EAGLE, true);
+                    playNormalGunEffects(gunLocation, a, Guns.DESERT_EAGLE);
                 } else if (getGunFromItem(e.getItem()) == Guns.ROCKET_LAUNCHER) {
                     // shoot using invisible arrow
                     Arrow[] as = shootRocket(e.getPlayer(), gunLocation, Guns.ROCKET_LAUNCHER);
@@ -54,10 +56,21 @@ public class GunEvents implements Listener {
         }
     }
 
+    private void playNormalGunEffects(Location gunLocation, Arrow a, Guns.Gun g) {
+        playNormalGunEffects(gunLocation, a, g, true);
+    }
+
     private void playNormalGunEffects(Location gunLocation, Arrow a, Guns.Gun g, boolean nozzleFlash) {
+        playNormalGunEffects(gunLocation, a, g, nozzleFlash, true);
+    }
+
+
+    private void playNormalGunEffects(Location gunLocation, Arrow a, Guns.Gun g, boolean nozzleFlash, boolean sound) {
         World world = gunLocation.getWorld();
-        // play sound
-        world.playSound(gunLocation, g.sound, 1, 1);
+        if (sound) {
+            // play sound
+            world.playSound(gunLocation, g.sound, 1, 1);
+        }
         if (nozzleFlash) {
             // spawn nozzle flash particles
             world.spawnParticle(Particle.FLAME, gunLocation, 3, 0.1, 0.1, 0.1, 0.001);
@@ -213,7 +226,7 @@ public class GunEvents implements Listener {
                     //e.setCancelled(true);
                     Vector vel = e.getEntity().getVelocity().multiply(0.8);
                     Arrow newArrow = shootBullet((Player) shooter, e.getEntity().getLocation(), gun, vel);
-                    playNormalGunEffects(e.getEntity().getLocation(), newArrow, gun, false);
+                    playNormalGunEffects(e.getEntity().getLocation(), newArrow, gun, false, false);
                 }
             } else {
                 Entity hitEntity = e.getHitEntity();
@@ -251,7 +264,7 @@ public class GunEvents implements Listener {
             }
 
             if (gun == Guns.ROCKET_LAUNCHER) {
-                doExplosion(e.getEntity().getLocation(), 7);
+                doExplosion(e.getEntity().getLocation(), 8, 100f);
             }
         }
 
@@ -271,36 +284,76 @@ public class GunEvents implements Listener {
         }.runTaskLater(GrandTheftMinecraft.instance, 1L);
     }
 
-    private void doExplosion(Location l, int size) {
+    private void doExplosion(Location l, int size, float power) {
+        for (Entity e : l.getWorld().getEntities()) {
+            if (e.getLocation().distance(l) <= size / 2f) {
+                if (e instanceof LivingEntity) {
+                    ((LivingEntity) e).damage(35);
+                }
+                e.setVelocity(e.getVelocity().add(new Vector(GrandTheftMinecraft.random.nextDouble(-0.3, 0.3), GrandTheftMinecraft.random.nextDouble(0.5, 1.5), GrandTheftMinecraft.random.nextDouble(-0.3, 0.3))));
+                if (e instanceof Item) {
+                    e.remove();
+                }
+            }
+        }
         if (size % 2 != 0) size++;
         Location start = l.clone().subtract(size / 2f, size / 2f, size / 2f);
         Location end = l.clone().add(size / 2f, size / 2f, size / 2f);
+
+        PriorityQueue<Util.PriorityItem<Block>> priorityQueue = new PriorityQueue<>(
+                Comparator.comparingDouble(Util.PriorityItem::priority)
+        );
+
         for (int x = (int) start.getX(); x < end.getX(); x++) {
             for (int y = (int) start.getY(); y < end.getY(); y++) {
                 for (int z = (int) start.getZ(); z < end.getZ(); z++) {
                     Location loc = new Location(l.getWorld(), x, y, z);
                     if (loc.distance(l) <= size / 2f) {
                         Block b = loc.getBlock();
-                        Vector vel = new Vector(GrandTheftMinecraft.random.nextDouble(-0.3, 0.3),
-                                GrandTheftMinecraft.random.nextDouble(1.5F), GrandTheftMinecraft.random.nextDouble(-0.3, 0.3));
-                        l.getWorld().spawn(b.getLocation().add(0.5, 0.5, 0.5), FallingBlock.class, fb -> {
-                            fb.setDropItem(true);
-                            fb.setGravity(true);
-                            fb.setHurtEntities(true);
-                            fb.setVelocity(vel);
-                            fb.setBlockData(b.getBlockData());
-                            fb.setTicksLived(1);
-                        });
-                        b.setType(Material.AIR, false);
-                        l.getWorld().spawnParticle(Particle.BLOCK_CRACK, b.getLocation().add(0.5, 0.5, 0.5), 10, 0.25, 0.25, 0.25, 0.001, b.getBlockData());
-                        if (GrandTheftMinecraft.random.nextInt(10) == 1) {
-                            // spawn explosion particle
-                            l.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, b.getLocation().add(0.5, 0.5, 0.5), 1, 0, 0, 0, 0.001);
+                        if (b.getType() != Material.AIR) {
+                            priorityQueue.add(new Util.PriorityItem<Block>(loc.distance(l), b));
                         }
                     }
                 }
             }
         }
+
+        while (!priorityQueue.isEmpty() && power > 0) {
+            Util.PriorityItem<Block> priorityItem = priorityQueue.poll();
+            Block b = priorityItem.item();
+            if (b.getType() == Material.BEDROCK) continue;
+            float h = b.getType().getHardness();
+            power -= h;
+            Vector vel = new Vector(GrandTheftMinecraft.random.nextDouble(-0.3, 0.3),
+                    GrandTheftMinecraft.random.nextDouble(1.5F), GrandTheftMinecraft.random.nextDouble(-0.3, 0.3));
+            if (h > 4) h = 4;
+            if (h < 1) {
+                vel.multiply(1.5);
+            } else if (h < 2) {
+                vel.multiply(1.25);
+            } else if (h >= 3) {
+                vel.multiply(0.75);
+            }
+            if (GrandTheftMinecraft.random.nextInt(7) == 1) {
+                b.breakNaturally();
+            } else {
+                l.getWorld().spawn(b.getLocation().add(0.5, 0.5, 0.5), FallingBlock.class, fb -> {
+                    fb.setDropItem(true);
+                    fb.setGravity(true);
+                    fb.setHurtEntities(true);
+                    fb.setVelocity(vel);
+                    fb.setBlockData(b.getBlockData());
+                    fb.setTicksLived(1);
+                });
+                b.setType(Material.AIR, false);
+            }
+            l.getWorld().spawnParticle(Particle.BLOCK_CRACK, b.getLocation().add(0.5, 0.5, 0.5), 10, 0.25, 0.25, 0.25, 0.001, b.getBlockData());
+            if (GrandTheftMinecraft.random.nextInt(10) == 1) {
+                // spawn explosion particle
+                l.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, b.getLocation().add(0.5, 0.5, 0.5), 1, 0, 0, 0, 0.001);
+            }
+        }
+
         for (int i = 0; i < 8; i++) {
             Vector vel = new Vector(GrandTheftMinecraft.random.nextDouble(-0.3, 0.3),
                     GrandTheftMinecraft.random.nextDouble(1.5F), GrandTheftMinecraft.random.nextDouble(-0.3, 0.3));
@@ -312,17 +365,6 @@ public class GunEvents implements Listener {
                 fb.setBlockData(Material.FIRE.createBlockData());
                 fb.setTicksLived(1);
             });
-        }
-        for (Entity e : l.getWorld().getEntities()) {
-            if (e.getLocation().distance(l) <= size / 2f) {
-                if (e instanceof LivingEntity) {
-                    ((LivingEntity) e).damage(35);
-                    e.getVelocity().add(new Vector(GrandTheftMinecraft.random.nextDouble(-0.3, 0.3), GrandTheftMinecraft.random.nextDouble(0.3, 0.7), GrandTheftMinecraft.random.nextDouble(-0.3, 0.3)));
-                }
-                if (e instanceof Item) {
-                    e.remove();
-                }
-            }
         }
         // play explosion sound
         l.getWorld().playSound(l, "minecraft:entity.generic.explode", 4, 0.9f);

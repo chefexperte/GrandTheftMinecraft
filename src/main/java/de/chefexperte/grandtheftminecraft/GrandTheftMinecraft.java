@@ -2,7 +2,9 @@ package de.chefexperte.grandtheftminecraft;
 
 import de.chefexperte.grandtheftminecraft.commands.GetGunCommand;
 import de.chefexperte.grandtheftminecraft.events.GunEvents;
+import net.kyori.adventure.text.Component;
 import org.bukkit.command.Command;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Objects;
@@ -12,6 +14,12 @@ public final class GrandTheftMinecraft extends JavaPlugin {
 
     public static GrandTheftMinecraft instance;
     public static Random random = new Random();
+
+    public static void sendMessage(String msg) {
+        for (Player p : GrandTheftMinecraft.instance.getServer().getOnlinePlayers()) {
+            p.sendMessage(Component.text(msg));
+        }
+    }
 
     @Override
     public void onEnable() {
