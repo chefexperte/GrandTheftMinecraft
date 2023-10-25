@@ -252,10 +252,11 @@ public class GunEvents implements Listener {
                     double projVel = e.getEntity().getVelocity().length();
                     double weaponDamage = gun.damage * (projVel / gun.bulletSpeed);
                     // apply damage
-                    if (!(hitEntity instanceof LivingEntity)) return;
-                    ((LivingEntity) hitEntity).damage(weaponDamage);
+                    if ((hitEntity instanceof LivingEntity)) {
+                        ((LivingEntity) hitEntity).damage(weaponDamage);
+                        ((LivingEntity) hitEntity).setNoDamageTicks(0);
+                    }
                     e.setCancelled(true);
-                    ((LivingEntity) hitEntity).setNoDamageTicks(0);
                     // knockback
                     Vector damageVel = e.getEntity().getVelocity().normalize().multiply(0.05 * weaponDamage);
                     hitEntity.setVelocity(hitEntity.getVelocity().multiply(0.7).add(damageVel));

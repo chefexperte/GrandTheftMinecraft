@@ -15,7 +15,7 @@ public final class GrandTheftMinecraft extends JavaPlugin {
     public static GrandTheftMinecraft instance;
     public static Random random = new Random();
 
-    public static void sendMessage(String msg) {
+    public static void sendDebugMessage(String msg) {
         for (Player p : GrandTheftMinecraft.instance.getServer().getOnlinePlayers()) {
             p.sendMessage(Component.text(msg));
         }
@@ -26,7 +26,7 @@ public final class GrandTheftMinecraft extends JavaPlugin {
         // Plugin startup logic
         instance = this;
         Guns.init();
-        getLogger().info("Was geht ab Digga");
+        getLogger().info("Welcome to Grand Theft Minecraft!");
         this.getServer().getCommandMap().register("get-gun", new GetGunCommand());
         this.getServer().getPluginManager().registerEvents(new GunEvents(), this);
     }
