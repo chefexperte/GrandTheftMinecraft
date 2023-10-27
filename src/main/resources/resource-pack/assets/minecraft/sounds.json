@@ -1,9 +1,37 @@
 {
-  "gtm.deagle": {
+  "gtm.desert_eagle": {
     "category": "master",
     "sounds": [
-      "deagle"
+      "desert_eagle"
     ],
-    "subtitle": "subtitles.gtm.deagle.shot"
+    "subtitle": "subtitles.gtm.desert_eagle.shot"
+  },
+  "gtm.ak47": {
+    "category": "master",
+    "sounds": [
+      "ak47"
+    ],
+    "subtitle": "subtitles.gtm.ak47.shot"
+  },
+  "gtm.equip": {
+    "category": "master",
+    "sounds": [
+      "equip"
+    ],
+    "subtitle": "subtitles.gtm.gun.equip"
+  },
+  "gtm.reload": {
+    "category": "master",
+    "sounds": [
+      "reload"
+    ],
+    "subtitle": "subtitles.gtm.gun.reload"
+  },
+  "gtm.empty_gun": {
+    "category": "master",
+    "sounds": [
+      "empty_gun"
+    ],
+    "subtitle": "subtitles.gtm.gun.empty"
   }
 }
