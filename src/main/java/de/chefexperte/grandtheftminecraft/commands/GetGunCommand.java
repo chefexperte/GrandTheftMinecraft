@@ -44,6 +44,10 @@ public class GetGunCommand extends Command {
                 int customModelData = Integer.parseInt(args[0]);
                 givenAsNumer = true;
                 g = Guns.getGunFromCustomModelData(customModelData);
+                if (g == null) {
+                    sender.sendMessage(Component.text("Invalid gun id!"));
+                    return true;
+                }
                 giveGunToPlayer((Player) sender, g);
                 return true;
             } catch (NumberFormatException e) {

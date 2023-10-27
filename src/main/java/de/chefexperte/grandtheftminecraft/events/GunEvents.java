@@ -1,8 +1,8 @@
 package de.chefexperte.grandtheftminecraft.events;
 
 import de.chefexperte.grandtheftminecraft.GrandTheftMinecraft;
-import de.chefexperte.grandtheftminecraft.guns.Guns;
 import de.chefexperte.grandtheftminecraft.Util;
+import de.chefexperte.grandtheftminecraft.guns.Guns;
 import io.papermc.paper.entity.TeleportFlag;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -18,7 +18,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.projectiles.ProjectileSource;
@@ -125,6 +124,7 @@ public class GunEvents implements Listener {
                 }
                 if (tries >= 1000) {
                     // something went wrong, whatever
+                    GrandTheftMinecraft.instance.getLogger().warning("Something went wrong while spawning smoke particles");
                 }
             }
         }.runTaskTimer(GrandTheftMinecraft.instance, 0L, 1L);
@@ -163,6 +163,7 @@ public class GunEvents implements Listener {
                         }
                         if (tries >= 1000) {
                             // something went wrong, whatever
+                            GrandTheftMinecraft.instance.getLogger().warning("Something went wrong while spawning smoke particles");
                         }
                     }
                 }
@@ -190,6 +191,7 @@ public class GunEvents implements Listener {
         a.setDamage(0);
         a.customName(Component.text(gun.bulletName));
         a.addCustomEffect(new PotionEffect(PotionEffectType.INVISIBILITY, PotionEffect.INFINITE_DURATION, 1, false, false), true);
+        //noinspection UnstableApiUsage
         a.setVisibleByDefault(false);
         a.setVelocity(customVelocity);
         return a;
@@ -200,18 +202,12 @@ public class GunEvents implements Listener {
         float gunSpeedMultiplier = gun.bulletSpeed;
         Arrow[] as = new Arrow[3];
         for (int i = 0; i < 3; i++) {
-            Vector offset = null;
-            switch (i) {
-                case 0:
-                    offset = new Vector(0, 0.5, 0);
-                    break;
-                case 1:
-                    offset = p.getLocation().getDirection().rotateAroundAxis(new Vector(0, 1, 0), 80).multiply(0.35);
-                    break;
-                case 2:
-                    offset = p.getLocation().getDirection().rotateAroundAxis(new Vector(0, 1, 0), -80).multiply(0.35);
-                    break;
-            }
+            Vector offset = switch (i) {
+                case 0 -> new Vector(0, 0.5, 0);
+                case 1 -> p.getLocation().getDirection().rotateAroundAxis(new Vector(0, 1, 0), 80).multiply(0.35);
+                case 2 -> p.getLocation().getDirection().rotateAroundAxis(new Vector(0, 1, 0), -80).multiply(0.35);
+                default -> null;
+            };
             Arrow a = gunLocation.getWorld().spawn(gunLocation.clone().add(offset), Arrow.class);
             a.setSilent(true);
             a.setShooter(p);
@@ -220,6 +216,7 @@ public class GunEvents implements Listener {
             a.setDamage(0);
             a.customName(Component.text(gun.bulletName));
             a.addCustomEffect(new PotionEffect(PotionEffectType.INVISIBILITY, PotionEffect.INFINITE_DURATION, 1, false, false), true);
+            //noinspection UnstableApiUsage
             a.setVisibleByDefault(false);
             if (target != null) {
                 a.setVelocity(target.clone().subtract(gunLocation).toVector().normalize().multiply(gunSpeedMultiplier));
@@ -339,7 +336,7 @@ public class GunEvents implements Listener {
                     if (loc.distance(l) <= size / 2f) {
                         Block b = loc.getBlock();
                         if (b.getType() != Material.AIR) {
-                            priorityQueue.add(new Util.PriorityItem<Block>(loc.distance(l), b));
+                            priorityQueue.add(new Util.PriorityItem<>(loc.distance(l), b));
                         }
                     }
                 }

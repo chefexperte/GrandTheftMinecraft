@@ -23,7 +23,6 @@ public class GetAmmoCommand extends Command {
 
     @Override
     public boolean execute(@NotNull CommandSender sender, @NotNull String label, @NotNull String[] args) {
-        Guns.Gun g;
         if (sender instanceof Player && args.length == 1) {
             // check if requested gun is given as gun id
             try {
