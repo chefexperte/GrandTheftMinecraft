@@ -1,8 +1,9 @@
 package de.chefexperte.grandtheftminecraft.events;
 
 import de.chefexperte.grandtheftminecraft.GrandTheftMinecraft;
-import de.chefexperte.grandtheftminecraft.Guns;
+import de.chefexperte.grandtheftminecraft.guns.Guns;
 import de.chefexperte.grandtheftminecraft.Util;
+import io.papermc.paper.entity.TeleportFlag;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import org.bukkit.Location;
@@ -16,6 +17,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -30,16 +32,29 @@ import java.util.Comparator;
 import java.util.Objects;
 import java.util.PriorityQueue;
 
+import static de.chefexperte.grandtheftminecraft.Util.getGunFromItem;
+import static de.chefexperte.grandtheftminecraft.Util.isGun;
+
 public class GunEvents implements Listener {
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent e) {
         if (e.getAction().isRightClick()) {
             if (isGun(e.getItem())) {
                 World world = e.getPlayer().getWorld();
-                Vector right = e.getPlayer().getLocation().getDirection().rotateAroundAxis(new Vector(0, 1, 0), 85).multiply(0.32);
+                Vector right = e.getPlayer().getLocation().getDirection().rotateAroundAxis(new Vector(0, 1, 0), 85).multiply(0.35);
                 Vector front = e.getPlayer().getLocation().getDirection().multiply(0.52);
                 Vector down = new Vector(0, -0.18, 0);
                 Location gunLocation = e.getPlayer().getEyeLocation().add(right).add(front).add(down);
+                int ammo = Util.getAmmoFromGunItem(e.getItem());
+                Util.updateGunDisplayName(e.getItem());
+                if (ammo == 0) {
+                    // play empty sound
+                    world.playSound(gunLocation, "minecraft:gtm.empty_gun", 1, 1);
+                    return;
+                }
+                if (ammo == -1) return;
+                Util.setAmmoForGunItem(e.getItem(), ammo - 1);
+                Util.updateGunDisplayName(e.getItem());
 
                 if (getGunFromItem(e.getItem()) == Guns.DESERT_EAGLE) {
                     // shoot using invisible arrow
@@ -51,6 +66,18 @@ public class GunEvents implements Listener {
                     Arrow[] as = shootRocket(e.getPlayer(), gunLocation, Guns.ROCKET_LAUNCHER);
                     // play gun effects
                     playRocketLauncherEffects(gunLocation, as, Guns.ROCKET_LAUNCHER);
+                } else if (getGunFromItem(e.getItem()) == Guns.AK47) {
+                    // shoot using invisible arrow
+                    Arrow a = shootBullet(e.getPlayer(), gunLocation, Guns.AK47);
+                    // play gun effects
+                    playNormalGunEffects(gunLocation, a, Guns.AK47);
+                    // apply recoil by moving player view
+                    Location newLoc = e.getPlayer().getLocation().clone();
+                    newLoc.setPitch(newLoc.getPitch() - Guns.AK47.recoilPattern.steps.get(0).pitch());
+                    newLoc.setYaw(newLoc.getYaw() - Guns.AK47.recoilPattern.steps.get(0).yaw());
+                    // Set the player's new direction
+                    //noinspection UnstableApiUsage
+                    e.getPlayer().teleport(newLoc, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.Relative.X, TeleportFlag.Relative.Y, TeleportFlag.Relative.Z);
                 }
             }
         }
@@ -85,20 +112,19 @@ public class GunEvents implements Listener {
             public void run() {
                 if (!a.isValid() || a.isInBlock() || a.isOnGround()) {
                     deadTimer++;
-                    if (deadTimer >= 10) {
+                    if (deadTimer >= 1) {
                         cancel();
                     }
-                } else {
-                    int tries = 0;
-                    while (oldArrowLoc.distance(a.getLocation()) > 0.51 && tries < 1000) {
-                        tries++;
-                        Vector dir = a.getLocation().clone().subtract(oldArrowLoc).toVector().normalize().multiply(0.5);
-                        oldArrowLoc.add(dir);
-                        world.spawnParticle(Particle.SMOKE_NORMAL, oldArrowLoc, 0, 0, 0, 0, 0, null, true);
-                    }
-                    if (tries >= 1000) {
-                        // something went wrong, whatever
-                    }
+                }
+                int tries = 0;
+                while (oldArrowLoc.distance(a.getLocation()) > 0.51 && tries < 1000) {
+                    tries++;
+                    Vector dir = a.getLocation().clone().subtract(oldArrowLoc).toVector().normalize().multiply(0.5);
+                    oldArrowLoc.add(dir);
+                    world.spawnParticle(Particle.SMOKE_NORMAL, oldArrowLoc, 0, 0, 0, 0, 0, null, true);
+                }
+                if (tries >= 1000) {
+                    // something went wrong, whatever
                 }
             }
         }.runTaskTimer(GrandTheftMinecraft.instance, 0L, 1L);
@@ -286,6 +312,7 @@ public class GunEvents implements Listener {
     }
 
     private void doExplosion(Location l, int size, float power) {
+        // damage entities and throw them around
         for (Entity e : l.getWorld().getEntities()) {
             if (e.getLocation().distance(l) <= size / 2f) {
                 if (e instanceof LivingEntity) {
@@ -304,7 +331,7 @@ public class GunEvents implements Listener {
         PriorityQueue<Util.PriorityItem<Block>> priorityQueue = new PriorityQueue<>(
                 Comparator.comparingDouble(Util.PriorityItem::priority)
         );
-
+        // add all blocks in explosion radius to priority queue sorted by distance
         for (int x = (int) start.getX(); x < end.getX(); x++) {
             for (int y = (int) start.getY(); y < end.getY(); y++) {
                 for (int z = (int) start.getZ(); z < end.getZ(); z++) {
@@ -327,6 +354,7 @@ public class GunEvents implements Listener {
             power -= h;
             Vector vel = new Vector(GrandTheftMinecraft.random.nextDouble(-0.3, 0.3),
                     GrandTheftMinecraft.random.nextDouble(1.5F), GrandTheftMinecraft.random.nextDouble(-0.3, 0.3));
+            // Change flying block velocity depending on hardness
             if (h > 4) h = 4;
             if (h < 1) {
                 vel.multiply(1.5);
@@ -335,6 +363,7 @@ public class GunEvents implements Listener {
             } else if (h >= 3) {
                 vel.multiply(0.75);
             }
+            // break a few blocks normally, the rest will be thrown around
             if (GrandTheftMinecraft.random.nextInt(7) == 1) {
                 b.breakNaturally();
             } else {
@@ -354,7 +383,7 @@ public class GunEvents implements Listener {
                 l.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, b.getLocation().add(0.5, 0.5, 0.5), 1, 0, 0, 0, 0.001);
             }
         }
-
+        // create eight fire blocks to throw around
         for (int i = 0; i < 8; i++) {
             Vector vel = new Vector(GrandTheftMinecraft.random.nextDouble(-0.3, 0.3),
                     GrandTheftMinecraft.random.nextDouble(1.5F), GrandTheftMinecraft.random.nextDouble(-0.3, 0.3));
@@ -374,22 +403,6 @@ public class GunEvents implements Listener {
 
     private boolean isGlass(Material mat) {
         return mat.toString().contains("GLASS");
-    }
-
-    private boolean isGun(ItemStack item) {
-        if (item == null) return false;
-        if (item.getType() != Material.IRON_INGOT) return false;
-        if (!item.hasItemMeta()) return false;
-        if (!item.getItemMeta().hasCustomModelData()) return false;
-        return true;
-    }
-
-    private Guns.Gun getGunFromItem(ItemStack item) {
-        if (isGun(item)) {
-            int customModelData = item.getItemMeta().getCustomModelData();
-            return Guns.getGunFromCustomModelData(customModelData);
-        }
-        return null;
     }
 
     public Block getTargetBlock(Player player, int maxDistance) {

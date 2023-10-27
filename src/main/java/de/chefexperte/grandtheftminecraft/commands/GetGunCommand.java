@@ -1,17 +1,19 @@
 package de.chefexperte.grandtheftminecraft.commands;
 
-import de.chefexperte.grandtheftminecraft.Guns;
+import de.chefexperte.grandtheftminecraft.GrandTheftMinecraft;
+import de.chefexperte.grandtheftminecraft.Util;
+import de.chefexperte.grandtheftminecraft.guns.Guns;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextColor;
-import org.bukkit.Color;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -69,8 +71,14 @@ public class GetGunCommand extends Command {
         ItemStack gun = new ItemStack(Material.IRON_INGOT);
         ItemMeta gunMeta = gun.getItemMeta();
         gunMeta.setCustomModelData(g.id);
-        gunMeta.displayName(Component.text(g.name));
+        NamespacedKey key = NamespacedKey.fromString("gtm.ammo", GrandTheftMinecraft.instance);
+        if (key == null) {
+            GrandTheftMinecraft.instance.getLogger().warning("get-gun: key is null");
+            return;
+        }
+        gunMeta.getPersistentDataContainer().set(key, PersistentDataType.INTEGER, g.magazineSize);
         gun.setItemMeta(gunMeta);
+        Util.updateGunDisplayName(gun);
         p.getInventory().addItem(gun);
     }
 
