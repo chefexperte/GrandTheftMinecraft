@@ -6,6 +6,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
 public class Util {
@@ -17,7 +18,14 @@ public class Util {
         if (item.getType() != Material.IRON_INGOT) return false;
         if (!item.hasItemMeta()) return false;
         if (!item.getItemMeta().hasCustomModelData()) return false;
+        return true;
+    }
 
+    public static boolean isAmmo(ItemStack item) {
+        if (item == null) return false;
+        if (item.getType() != Material.ARROW) return false;
+        if (!item.hasItemMeta()) return false;
+        if (!item.getItemMeta().hasCustomModelData()) return false;
         return true;
     }
 
@@ -29,51 +37,80 @@ public class Util {
         return null;
     }
 
-    private static boolean isGunMetaAndKeyValid(ItemMeta meta, NamespacedKey key) {
-        if (key == null) {
-            GrandTheftMinecraft.instance.getLogger().warning("get-gun: key is null");
-            return false;
-        }
-        if (meta == null) {
-            GrandTheftMinecraft.instance.getLogger().warning("get-gun: gunMeta is null");
-            return false;
-        }
-        if (!meta.getPersistentDataContainer().has(key, PersistentDataType.INTEGER)) {
-            GrandTheftMinecraft.instance.getLogger().warning("get-gun: gunMeta does not have key");
-            return false;
-        }
+    private static <T> T getKeyFromGun(ItemStack gun, String key, PersistentDataType<T, T> type) {
+        if (!isGun(gun)) return null;
+        ItemMeta gunMeta = gun.getItemMeta();
+        if (gunMeta == null) return null;
+        NamespacedKey realKey = NamespacedKey.fromString(key, GrandTheftMinecraft.instance);
+        if (realKey == null) return null;
+        PersistentDataContainer container = gunMeta.getPersistentDataContainer();
+        if (!container.has(realKey, type)) return null;
+        return container.get(realKey, type);
+    }
+
+    private static <T> boolean setKeyForGun(ItemStack gun, String key, PersistentDataType<T, T> type, T value) {
+        if (!isGun(gun)) return false;
+        ItemMeta gunMeta = gun.getItemMeta();
+        if (gunMeta == null) return false;
+        NamespacedKey realKey = NamespacedKey.fromString(key, GrandTheftMinecraft.instance);
+        if (realKey == null) return false;
+        PersistentDataContainer container = gunMeta.getPersistentDataContainer();
+        container.set(realKey, type, value);
+        gun.setItemMeta(gunMeta);
         return true;
+    }
+
+    public static int getGunRecoilPatternId(ItemStack gun) {
+        if (!isGun(gun)) return -1;
+        try {
+            //noinspection DataFlowIssue
+            return getKeyFromGun(gun, "gtm.rp_id", PersistentDataType.INTEGER);
+        } catch (NullPointerException e) {
+            return -1;
+        }
+    }
+
+    public static void setGunRecoilPatternId(ItemStack gun, int ammo) {
+        if (!isGun(gun)) return;
+        setKeyForGun(gun, "gtm.rp_id", PersistentDataType.INTEGER, ammo);
     }
 
     public static int getAmmoFromGunItem(ItemStack gun) {
         if (!isGun(gun)) return -1;
-        NamespacedKey key = NamespacedKey.fromString("gtm.ammo", GrandTheftMinecraft.instance);
-        ItemMeta gunMeta = gun.getItemMeta();
-        if (!isGunMetaAndKeyValid(gunMeta, key)) return -1;
-        //noinspection DataFlowIssue
-        return gunMeta.getPersistentDataContainer().get(key, PersistentDataType.INTEGER);
+        try {
+            //noinspection DataFlowIssue
+            return getKeyFromGun(gun, "gtm.ammo", PersistentDataType.INTEGER);
+        } catch (NullPointerException e) {
+            return -1;
+        }
     }
 
-    public static void setAmmoForGunItem(ItemStack gun, int ammo) {
-        if (!isGun(gun)) return;
-        NamespacedKey key = NamespacedKey.fromString("gtm.ammo", GrandTheftMinecraft.instance);
-        ItemMeta gunMeta = gun.getItemMeta();
-        if (!isGunMetaAndKeyValid(gunMeta, key)) return;
-        //noinspection DataFlowIssue
-        gunMeta.getPersistentDataContainer().set(key, PersistentDataType.INTEGER, ammo);
-        gun.setItemMeta(gunMeta);
+    public static boolean setAmmoForGunItem(ItemStack gun, int ammo) {
+        if (!isGun(gun)) return false;
+        return setKeyForGun(gun, "gtm.ammo", PersistentDataType.INTEGER, ammo);
     }
 
-    public static void updateGunDisplayName(ItemStack gun) {
-        if (!isGun(gun)) return;
+    public static int getRandomIdForGunItem(ItemStack gun) {
+        if (!isGun(gun)) return -1;
+        try {
+            //noinspection DataFlowIssue
+            return getKeyFromGun(gun, "gtm.r_id", PersistentDataType.INTEGER);
+        } catch (NullPointerException e) {
+            return -1;
+        }
+    }
+
+    public static boolean updateGunDisplayName(ItemStack gun) {
+        if (!isGun(gun)) return false;
         int ammo = getAmmoFromGunItem(gun);
-        if (ammo == -1) return;
+        if (ammo == -1) return false;
         ItemMeta gunMeta = gun.getItemMeta();
         Guns.Gun g = getGunFromItem(gun);
-        if (g == null) return;
+        if (g == null) return false;
         Component name = Component.text(g.name + " [" + ammo + "/" + g.magazineSize + "]");
         gunMeta.displayName(name);
         gun.setItemMeta(gunMeta);
+        return true;
     }
 
 }

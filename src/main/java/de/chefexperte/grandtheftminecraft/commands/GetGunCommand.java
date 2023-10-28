@@ -13,6 +13,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
 
@@ -75,12 +76,17 @@ public class GetGunCommand extends Command {
         ItemStack gun = new ItemStack(Material.IRON_INGOT);
         ItemMeta gunMeta = gun.getItemMeta();
         gunMeta.setCustomModelData(g.id);
-        NamespacedKey key = NamespacedKey.fromString("gtm.ammo", GrandTheftMinecraft.instance);
-        if (key == null) {
+        NamespacedKey ammoKey = NamespacedKey.fromString("gtm.ammo", GrandTheftMinecraft.instance);
+        NamespacedKey rpIdKey = NamespacedKey.fromString("gtm.rp_id", GrandTheftMinecraft.instance);
+        NamespacedKey randomKey = NamespacedKey.fromString("gtm.r_id", GrandTheftMinecraft.instance);
+        if (ammoKey == null || rpIdKey == null || randomKey == null) {
             GrandTheftMinecraft.instance.getLogger().warning("get-gun: key is null");
             return;
         }
-        gunMeta.getPersistentDataContainer().set(key, PersistentDataType.INTEGER, g.magazineSize);
+        PersistentDataContainer container = gunMeta.getPersistentDataContainer();
+        container.set(ammoKey, PersistentDataType.INTEGER, g.magazineSize);
+        container.set(rpIdKey, PersistentDataType.INTEGER, 0);
+        container.set(randomKey, PersistentDataType.INTEGER, GrandTheftMinecraft.random.nextInt());
         gun.setItemMeta(gunMeta);
         Util.updateGunDisplayName(gun);
         p.getInventory().addItem(gun);

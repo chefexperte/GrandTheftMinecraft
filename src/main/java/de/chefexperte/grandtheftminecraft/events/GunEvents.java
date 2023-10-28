@@ -3,6 +3,7 @@ package de.chefexperte.grandtheftminecraft.events;
 import de.chefexperte.grandtheftminecraft.GrandTheftMinecraft;
 import de.chefexperte.grandtheftminecraft.Util;
 import de.chefexperte.grandtheftminecraft.guns.Guns;
+import de.chefexperte.grandtheftminecraft.guns.RecoilPatterns;
 import io.papermc.paper.entity.TeleportFlag;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -16,8 +17,11 @@ import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.projectiles.ProjectileSource;
@@ -26,13 +30,9 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.BlockIterator;
 import org.bukkit.util.Vector;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Objects;
-import java.util.PriorityQueue;
+import java.util.*;
 
-import static de.chefexperte.grandtheftminecraft.Util.getGunFromItem;
-import static de.chefexperte.grandtheftminecraft.Util.isGun;
+import static de.chefexperte.grandtheftminecraft.Util.*;
 
 public class GunEvents implements Listener {
     @EventHandler
@@ -44,6 +44,9 @@ public class GunEvents implements Listener {
                 Vector front = e.getPlayer().getLocation().getDirection().multiply(0.52);
                 Vector down = new Vector(0, -0.18, 0);
                 Location gunLocation = e.getPlayer().getEyeLocation().add(right).add(front).add(down);
+                Guns.Gun g = getGunFromItem(e.getItem());
+                if (g == null) return;
+                // code about ammo
                 int ammo = Util.getAmmoFromGunItem(e.getItem());
                 Util.updateGunDisplayName(e.getItem());
                 if (ammo == 0) {
@@ -55,29 +58,104 @@ public class GunEvents implements Listener {
                 Util.setAmmoForGunItem(e.getItem(), ammo - 1);
                 Util.updateGunDisplayName(e.getItem());
 
-                if (getGunFromItem(e.getItem()) == Guns.DESERT_EAGLE) {
-                    // shoot using invisible arrow
-                    Arrow a = shootBullet(e.getPlayer(), gunLocation, Guns.DESERT_EAGLE);
-                    // play gun effects
-                    playNormalGunEffects(gunLocation, a, Guns.DESERT_EAGLE);
-                } else if (getGunFromItem(e.getItem()) == Guns.ROCKET_LAUNCHER) {
-                    // shoot using invisible arrow
-                    Arrow[] as = shootRocket(e.getPlayer(), gunLocation, Guns.ROCKET_LAUNCHER);
-                    // play gun effects
-                    playRocketLauncherEffects(gunLocation, as, Guns.ROCKET_LAUNCHER);
-                } else if (getGunFromItem(e.getItem()) == Guns.AK47) {
-                    // shoot using invisible arrow
-                    Arrow a = shootBullet(e.getPlayer(), gunLocation, Guns.AK47);
-                    // play gun effects
-                    playNormalGunEffects(gunLocation, a, Guns.AK47);
-                    // apply recoil by moving player view
-                    Location newLoc = e.getPlayer().getLocation().clone();
-                    newLoc.setPitch(newLoc.getPitch() - Guns.AK47.recoilPattern.steps.get(0).pitch());
-                    newLoc.setYaw(newLoc.getYaw() - Guns.AK47.recoilPattern.steps.get(0).yaw());
+                // code for recoil
+                // apply recoil by moving player view
+                Location newLoc = e.getPlayer().getLocation().clone();
+                RecoilPatterns.RecoilPattern recoilPattern = g.recoilPattern;
+                if (recoilPattern != null) {
+                    int step = Util.getGunRecoilPatternId(e.getItem());
+                    if (step == -1) {
+                        step = 0;
+                    } else {
+                        step++;
+                        if (step >= recoilPattern.steps.size()) {
+                            step = 0;
+                        }
+                    }
+                    Util.setGunRecoilPatternId(e.getItem(), step);
+                    newLoc.setPitch(newLoc.getPitch() + recoilPattern.steps.get(step).pitch());
+                    newLoc.setYaw(newLoc.getYaw() + recoilPattern.steps.get(step).yaw());
                     // Set the player's new direction
                     //noinspection UnstableApiUsage
                     e.getPlayer().teleport(newLoc, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.Relative.X, TeleportFlag.Relative.Y, TeleportFlag.Relative.Z);
                 }
+
+                if (g == Guns.DESERT_EAGLE || g == Guns.AK47) {
+                    // shoot using invisible arrow
+                    Arrow a = shootBullet(e.getPlayer(), gunLocation, g);
+                    // play gun effects
+                    playNormalGunEffects(gunLocation, a, g);
+                } else if (g == Guns.ROCKET_LAUNCHER) {
+                    // shoot using invisible arrow
+                    Arrow[] as = shootRocket(e.getPlayer(), gunLocation, g);
+                    // play gun effects
+                    playRocketLauncherEffects(gunLocation, as, g);
+                } else {
+                    GrandTheftMinecraft.instance.getLogger().warning("Unknown gun type: " + g.name);
+                }
+            }
+        }
+    }
+
+    HashMap<Player, ItemStack> playerInv = new HashMap<>();
+
+    @EventHandler
+    public void onPlayerDropItem(PlayerDropItemEvent e) {
+        if (isGun(e.getItemDrop().getItemStack())) {
+            if (!playerInv.containsKey(e.getPlayer())) {
+                e.setCancelled(true);
+                ItemStack gun = e.getItemDrop().getItemStack();
+                Guns.Gun g = getGunFromItem(gun);
+                if (g == null) return;
+                // player is reloading the gun
+                int missingAmmo = g.magazineSize - Util.getAmmoFromGunItem(gun);
+                // go through ammo and reload gun
+                int reloadAmmo = 0;
+                for (ItemStack item : e.getPlayer().getInventory().getContents()) {
+                    if (item != null && item.getType() == Material.ARROW) {
+                        if (isAmmo(item)) {
+                            int reloadAmount = Math.min(missingAmmo, item.getAmount());
+                            reloadAmmo += reloadAmount;
+                            item.setAmount(item.getAmount() - reloadAmount);
+                            missingAmmo -= reloadAmount;
+                        }
+                    }
+                }
+                // play reload sound
+                e.getPlayer().getWorld().playSound(e.getPlayer().getLocation(), "minecraft:gtm.reload", 1, 1);
+                // set ammo after waiting for reload time
+                final int finalReloadAmmo = reloadAmmo;
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        for (ItemStack item : e.getPlayer().getInventory().getContents()) {
+                            // if is gun
+                            if (isGun(item)) {
+                                if (Util.getRandomIdForGunItem(item) == Util.getRandomIdForGunItem(gun)){
+                                    Util.setAmmoForGunItem(item, Util.getAmmoFromGunItem(item) + finalReloadAmmo);
+                                    Util.updateGunDisplayName(item);
+                                    //item.setItemMeta(gun.getItemMeta());
+                                }
+                            }
+                        }
+                    }
+                }.runTaskLater(GrandTheftMinecraft.instance, (long) (g.reloadTime * 20));
+            }
+            playerInv.remove(e.getPlayer());
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent e) {
+        if (e.getWhoClicked() instanceof Player p) {
+            ItemStack current = e.getCurrentItem();
+            ItemStack cursor = e.getCursor();
+            if (current == null) {
+                if (isGun(cursor)) {
+                    playerInv.put(p, cursor);
+                }
+            } else if (current.getType() == Material.AIR) {
+                playerInv.remove(p);
             }
         }
     }
