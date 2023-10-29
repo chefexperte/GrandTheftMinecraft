@@ -100,17 +100,65 @@ public class Util {
         }
     }
 
+    public static boolean isGunReloading(ItemStack gun) {
+        if (!isGun(gun)) return false;
+        try {
+            //noinspection DataFlowIssue
+            return getKeyFromGun(gun, "gtm.is_reloading", PersistentDataType.INTEGER) == 1;
+        } catch (NullPointerException e) {
+            return false;
+        }
+    }
+
+    public static boolean setGunReloading(ItemStack gun, boolean reloading) {
+        if (!isGun(gun)) return false;
+        return setKeyForGun(gun, "gtm.is_reloading", PersistentDataType.INTEGER, reloading ? 1 : 0);
+    }
+
+    public static long getLastShot(ItemStack gun) {
+        if (!isGun(gun)) return -1;
+        try {
+            //noinspection DataFlowIssue
+            return getKeyFromGun(gun, "gtm.last_shot", PersistentDataType.LONG);
+        } catch (NullPointerException e) {
+            return -1;
+        }
+    }
+
+    public static boolean setLastShot(ItemStack gun, long lastShot) {
+        if (!isGun(gun)) return false;
+        return setKeyForGun(gun, "gtm.last_shot", PersistentDataType.LONG, lastShot);
+    }
+
     public static boolean updateGunDisplayName(ItemStack gun) {
         if (!isGun(gun)) return false;
         int ammo = getAmmoFromGunItem(gun);
         if (ammo == -1) return false;
         ItemMeta gunMeta = gun.getItemMeta();
         Guns.Gun g = getGunFromItem(gun);
+        String reloadString = isGunReloading(gun) ? " [Reloading]" : "";
         if (g == null) return false;
-        Component name = Component.text(g.name + " [" + ammo + "/" + g.magazineSize + "]");
+        Component name = Component.text(g.name + " [" + ammo + "/" + g.magazineSize + "]" + reloadString);
         gunMeta.displayName(name);
         gun.setItemMeta(gunMeta);
         return true;
+    }
+
+    public static ItemStack createAmmo(int amount, Guns.AmmoType ammoType) {
+        ItemStack ammo = new ItemStack(Material.ARROW, amount);
+        ItemMeta ammoMeta = ammo.getItemMeta();
+        ammoMeta.setCustomModelData(ammoType.id);
+        ammoMeta.displayName(Component.text(Guns.AMMO));
+        ammo.setItemMeta(ammoMeta);
+        return ammo;
+    }
+
+    public static Guns.AmmoType getAmmoTypeFromItem(ItemStack item) {
+        if (isAmmo(item)) {
+            int customModelData = item.getItemMeta().getCustomModelData();
+            return Guns.AmmoType.fromId(customModelData);
+        }
+        return null;
     }
 
 }

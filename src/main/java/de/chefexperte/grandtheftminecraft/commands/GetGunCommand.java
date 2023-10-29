@@ -79,7 +79,9 @@ public class GetGunCommand extends Command {
         NamespacedKey ammoKey = NamespacedKey.fromString("gtm.ammo", GrandTheftMinecraft.instance);
         NamespacedKey rpIdKey = NamespacedKey.fromString("gtm.rp_id", GrandTheftMinecraft.instance);
         NamespacedKey randomKey = NamespacedKey.fromString("gtm.r_id", GrandTheftMinecraft.instance);
-        if (ammoKey == null || rpIdKey == null || randomKey == null) {
+        NamespacedKey isReloading = NamespacedKey.fromString("gtm.is_reloading", GrandTheftMinecraft.instance);
+        NamespacedKey lastShot = NamespacedKey.fromString("gtm.last_shot", GrandTheftMinecraft.instance);
+        if (ammoKey == null || rpIdKey == null || randomKey == null || isReloading == null || lastShot == null) {
             GrandTheftMinecraft.instance.getLogger().warning("get-gun: key is null");
             return;
         }
@@ -87,6 +89,8 @@ public class GetGunCommand extends Command {
         container.set(ammoKey, PersistentDataType.INTEGER, g.magazineSize);
         container.set(rpIdKey, PersistentDataType.INTEGER, 0);
         container.set(randomKey, PersistentDataType.INTEGER, GrandTheftMinecraft.random.nextInt());
+        container.set(isReloading, PersistentDataType.INTEGER, 0);
+        container.set(lastShot, PersistentDataType.LONG, 0L);
         gun.setItemMeta(gunMeta);
         Util.updateGunDisplayName(gun);
         p.getInventory().addItem(gun);

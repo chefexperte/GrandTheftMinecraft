@@ -1,5 +1,6 @@
 package de.chefexperte.grandtheftminecraft.commands;
 
+import de.chefexperte.grandtheftminecraft.Util;
 import de.chefexperte.grandtheftminecraft.guns.Guns;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -15,7 +16,7 @@ import java.util.Arrays;
 
 public class GetAmmoCommand extends Command {
 
-    private static final String usageMessage = "/get-ammo <amount>";
+    private static final String usageMessage = "/get-ammo <amount> <type>";
 
     public GetAmmoCommand() {
         super("get-arrow", "Gives you ammo", usageMessage, Arrays.asList("get-ammo", "getammo"));
@@ -23,16 +24,18 @@ public class GetAmmoCommand extends Command {
 
     @Override
     public boolean execute(@NotNull CommandSender sender, @NotNull String label, @NotNull String[] args) {
-        if (sender instanceof Player && args.length == 1) {
+        if (sender instanceof Player && args.length == 2) {
             // check if requested gun is given as gun id
             try {
                 Player p = (Player) sender;
                 int amount = Integer.parseInt(args[0]);
-                ItemStack ammo = new ItemStack(Material.ARROW, amount);
-                ItemMeta ammoMeta = ammo.getItemMeta();
-                ammoMeta.setCustomModelData(1);
-                ammoMeta.displayName(Component.text(Guns.AMMO));
-                ammo.setItemMeta(ammoMeta);
+                int id = Integer.parseInt(args[1]);
+                Guns.AmmoType type = Guns.AmmoType.fromId(id);
+                if (type == null) {
+                    sender.sendMessage(Component.text("Invalid ammo type!"));
+                    return true;
+                }
+                ItemStack ammo = Util.createAmmo(amount, type);
                 p.getInventory().addItem(ammo);
                 return true;
             } catch (NumberFormatException e) {

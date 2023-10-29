@@ -16,10 +16,12 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
@@ -52,11 +54,18 @@ public class GunEvents implements Listener {
                 if (ammo == 0) {
                     // play empty sound
                     world.playSound(gunLocation, "minecraft:gtm.empty_gun", 1, 1);
+                    reloadGun(e.getItem(), g, e.getPlayer());
                     return;
                 }
                 if (ammo == -1) return;
+                if (Util.isGunReloading(e.getItem())) return;
+                long lastShot = Util.getLastShot(e.getItem());
+                long now = System.currentTimeMillis();
+                e.getPlayer().sendMessage(Component.text("Time diff: " + (now - lastShot) + " metric: " + (1000 / g.fireRate)));
+                if (lastShot == -1 || now - lastShot < (1000 / g.fireRate)) return;
                 Util.setAmmoForGunItem(e.getItem(), ammo - 1);
                 Util.updateGunDisplayName(e.getItem());
+                Util.setLastShot(e.getItem(), now);
 
                 // code for recoil
                 // apply recoil by moving player view
@@ -76,8 +85,14 @@ public class GunEvents implements Listener {
                     newLoc.setPitch(newLoc.getPitch() + recoilPattern.steps.get(step).pitch());
                     newLoc.setYaw(newLoc.getYaw() + recoilPattern.steps.get(step).yaw());
                     // Set the player's new direction
-                    //noinspection UnstableApiUsage
-                    e.getPlayer().teleport(newLoc, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.Relative.X, TeleportFlag.Relative.Y, TeleportFlag.Relative.Z);
+                    new BukkitRunnable() {
+                        @Override
+                        public void run() {
+                            //noinspection UnstableApiUsage
+                            e.getPlayer().teleport(newLoc, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.Relative.X, TeleportFlag.Relative.Y, TeleportFlag.Relative.Z);
+                        }
+                    }.runTaskLater(GrandTheftMinecraft.instance, 1L);
+
                 }
 
                 if (g == Guns.DESERT_EAGLE || g == Guns.AK47) {
@@ -97,49 +112,31 @@ public class GunEvents implements Listener {
         }
     }
 
+    @EventHandler
+    public void onPlayerSwapHandItems(PlayerItemHeldEvent e) {
+        ItemStack prev = e.getPlayer().getInventory().getItem(e.getPreviousSlot());
+        ItemStack next = e.getPlayer().getInventory().getItem(e.getNewSlot());
+        if (isGun(prev)) {
+            //e.setCancelled(true);
+            if (Util.isGunReloading(prev)) {
+                Util.setGunReloading(prev, false);
+            }
+        }
+    }
+
     HashMap<Player, ItemStack> playerInv = new HashMap<>();
 
     @EventHandler
     public void onPlayerDropItem(PlayerDropItemEvent e) {
         if (isGun(e.getItemDrop().getItemStack())) {
+            ItemStack gun = e.getItemDrop().getItemStack();
+            Guns.Gun g = getGunFromItem(gun);
+            if (g == null) return;
             if (!playerInv.containsKey(e.getPlayer())) {
                 e.setCancelled(true);
-                ItemStack gun = e.getItemDrop().getItemStack();
-                Guns.Gun g = getGunFromItem(gun);
-                if (g == null) return;
-                // player is reloading the gun
-                int missingAmmo = g.magazineSize - Util.getAmmoFromGunItem(gun);
-                // go through ammo and reload gun
-                int reloadAmmo = 0;
-                for (ItemStack item : e.getPlayer().getInventory().getContents()) {
-                    if (item != null && item.getType() == Material.ARROW) {
-                        if (isAmmo(item)) {
-                            int reloadAmount = Math.min(missingAmmo, item.getAmount());
-                            reloadAmmo += reloadAmount;
-                            item.setAmount(item.getAmount() - reloadAmount);
-                            missingAmmo -= reloadAmount;
-                        }
-                    }
-                }
-                // play reload sound
-                e.getPlayer().getWorld().playSound(e.getPlayer().getLocation(), "minecraft:gtm.reload", 1, 1);
-                // set ammo after waiting for reload time
-                final int finalReloadAmmo = reloadAmmo;
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        for (ItemStack item : e.getPlayer().getInventory().getContents()) {
-                            // if is gun
-                            if (isGun(item)) {
-                                if (Util.getRandomIdForGunItem(item) == Util.getRandomIdForGunItem(gun)){
-                                    Util.setAmmoForGunItem(item, Util.getAmmoFromGunItem(item) + finalReloadAmmo);
-                                    Util.updateGunDisplayName(item);
-                                    //item.setItemMeta(gun.getItemMeta());
-                                }
-                            }
-                        }
-                    }
-                }.runTaskLater(GrandTheftMinecraft.instance, (long) (g.reloadTime * 20));
+                reloadGun(gun, g, e.getPlayer());
+            } else {
+                Util.setGunReloading(gun, false);
             }
             playerInv.remove(e.getPlayer());
         }
@@ -160,6 +157,72 @@ public class GunEvents implements Listener {
         }
     }
 
+    private int getPlayerInventoryAmmoCount(Player p, Guns.AmmoType type) {
+        int ammo = 0;
+        for (ItemStack item : p.getInventory().getContents()) {
+            if (item != null && item.getType() == Material.ARROW) {
+                if (isAmmo(item) && Util.getAmmoTypeFromItem(item) == type) {
+                    ammo += item.getAmount();
+                }
+            }
+        }
+        return ammo;
+    }
+
+    private void reloadGun(ItemStack gun, Guns.Gun g, Player p) {
+        if (Util.isGunReloading(gun)) return;
+        if (getPlayerInventoryAmmoCount(p, g.ammoType) == 0) return;
+        if (Util.getAmmoFromGunItem(gun) == g.magazineSize) return;
+        Util.setGunReloading(gun, true);
+        Util.updateGunDisplayName(gun);
+        // player is reloading the gun
+        int missingAmmo = g.magazineSize - Util.getAmmoFromGunItem(gun);
+        Guns.AmmoType ammoType = g.ammoType;
+        // go through ammo and reload gun
+        int reloadAmmo = 0;
+        for (ItemStack item : p.getInventory().getContents()) {
+            if (item != null && item.getType() == Material.ARROW) {
+                if (isAmmo(item)) {
+                    Guns.AmmoType type = Util.getAmmoTypeFromItem(item);
+                    int reloadAmount = Math.min(missingAmmo, item.getAmount());
+                    if (type != null && type == ammoType) {
+                        reloadAmmo += reloadAmount;
+                        item.setAmount(item.getAmount() - reloadAmount);
+                        missingAmmo -= reloadAmount;
+                    }
+                }
+            }
+        }
+        // play reload sound to player
+        p.getWorld().playSound(p.getLocation(), "minecraft:gtm.reload", 1, 1);
+        // play reload sound to everyone else
+        p.playSound(p.getLocation(), "minecraft:gtm.reload", 10, 1);
+        // set ammo after waiting for reload time
+        final int finalReloadAmmo = reloadAmmo;
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (ItemStack item : p.getInventory().getContents()) {
+                    // if item is a gun
+                    if (isGun(item)) {
+                        if (Util.getRandomIdForGunItem(item) == Util.getRandomIdForGunItem(gun)) {
+                            if (Util.isGunReloading(item)) {
+                                Util.setAmmoForGunItem(item, Util.getAmmoFromGunItem(item) + finalReloadAmmo);
+                            } else {
+                                // give back ammo to player because reloading was canceled
+                                ItemStack ammo = Util.createAmmo(finalReloadAmmo, ammoType);
+                                p.getInventory().addItem(ammo);
+                            }
+                            Util.setGunReloading(item, false);
+                            Util.updateGunDisplayName(item);
+                            //item.setItemMeta(gun.getItemMeta());
+                        }
+                    }
+                }
+            }
+        }.runTaskLater(GrandTheftMinecraft.instance, (long) (g.reloadTime * 20));
+    }
+
     private void playNormalGunEffects(Location gunLocation, Arrow a, Guns.Gun g) {
         playNormalGunEffects(gunLocation, a, g, true);
     }
@@ -173,7 +236,7 @@ public class GunEvents implements Listener {
         World world = gunLocation.getWorld();
         if (sound) {
             // play sound
-            world.playSound(gunLocation, g.sound, 1, 1);
+            world.playSound(gunLocation, g.sound, 3, 1);
         }
         if (nozzleFlash) {
             // spawn nozzle flash particles
@@ -306,6 +369,28 @@ public class GunEvents implements Listener {
         return as;
     }
 
+    public record DeathMapEntry(long timeStamp, Player shooter, Guns.Gun gun) { }
+
+    private final HashMap<Player, DeathMapEntry> playersShotDead = new HashMap<>();
+
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent e) {
+        Player p = e.getEntity();
+        if (playersShotDead.containsKey(p)) {
+            long time = playersShotDead.get(p).timeStamp;
+            Player killer = playersShotDead.get(p).shooter;
+            Guns.Gun gun = playersShotDead.get(p).gun;
+            String gunName = gun != null ? gun.name : null;
+            if (System.currentTimeMillis() - time < 100) {
+                String message = p.getName() + " was shot dead" + " by " + killer.getName();
+                if (gunName != null) {
+                    message += " with a " + gunName;
+                }
+                e.deathMessage(Component.text(message));
+            }
+        }
+    }
+
     // Arrow hit event
     @EventHandler
     public void arrowHitEvent(ProjectileHitEvent e) {
@@ -354,7 +439,14 @@ public class GunEvents implements Listener {
                     double weaponDamage = gun.damage * (projVel / gun.bulletSpeed);
                     // apply damage
                     if ((hitEntity instanceof LivingEntity)) {
-                        ((LivingEntity) hitEntity).damage(weaponDamage);
+                        ((LivingEntity) hitEntity).setKiller((Player) shooter);
+                        if (((LivingEntity) hitEntity).getHealth()-weaponDamage <= 0) {
+                            //GrandTheftMinecraft.sendDebugMessage("Player " + ((Player) shooter).getName() + " shot " + hitEntity.getName() + " dead");
+                            if (hitEntity instanceof Player p) {
+                                playersShotDead.put(p, new DeathMapEntry(System.currentTimeMillis(), (Player) shooter, gun));
+                            }
+                        }
+                        ((LivingEntity) hitEntity).damage(weaponDamage, (Entity) shooter);
                         ((LivingEntity) hitEntity).setNoDamageTicks(0);
                     }
                     e.setCancelled(true);
@@ -369,7 +461,6 @@ public class GunEvents implements Listener {
                 doExplosion(e.getEntity().getLocation(), 8, 100f);
             }
         }
-
     }
 
     private void spawnBulletHitParticles(Entity e, Material hitMat, BlockFace hitFace) {
