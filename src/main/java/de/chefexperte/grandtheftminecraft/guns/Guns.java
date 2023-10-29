@@ -6,7 +6,7 @@ public class Guns {
 
     public static ArrayList<Gun> guns = new ArrayList<>();
     public static Gun DESERT_EAGLE = new Gun(1, "Desert Eagle", "Desert Eagle Bullet", 9,
-            11, 500, "minecraft:gtm.desert_eagle", 7, 1.5f, 1.5f,
+            11, 500, "minecraft:gtm.desert_eagle", 7, 1.5f, 2f,
             RecoilPatterns.DESERT_EAGLE, AmmoType.FIFTY);
     public static Gun ROCKET_LAUNCHER = new Gun(2, "Rocket Launcher", "Rocket", 1,
             50, 30000, "minecraft:entity.firework_rocket.launch", 1, 2.5f,

@@ -61,7 +61,6 @@ public class GunEvents implements Listener {
                 if (Util.isGunReloading(e.getItem())) return;
                 long lastShot = Util.getLastShot(e.getItem());
                 long now = System.currentTimeMillis();
-                e.getPlayer().sendMessage(Component.text("Time diff: " + (now - lastShot) + " metric: " + (1000 / g.fireRate)));
                 if (lastShot == -1 || now - lastShot < (1000 / g.fireRate)) return;
                 Util.setAmmoForGunItem(e.getItem(), ammo - 1);
                 Util.updateGunDisplayName(e.getItem());
@@ -369,7 +368,8 @@ public class GunEvents implements Listener {
         return as;
     }
 
-    public record DeathMapEntry(long timeStamp, Player shooter, Guns.Gun gun) { }
+    public record DeathMapEntry(long timeStamp, Player shooter, Guns.Gun gun, boolean isHeadshot) {
+    }
 
     private final HashMap<Player, DeathMapEntry> playersShotDead = new HashMap<>();
 
@@ -377,12 +377,18 @@ public class GunEvents implements Listener {
     public void onPlayerDeath(PlayerDeathEvent e) {
         Player p = e.getEntity();
         if (playersShotDead.containsKey(p)) {
-            long time = playersShotDead.get(p).timeStamp;
-            Player killer = playersShotDead.get(p).shooter;
-            Guns.Gun gun = playersShotDead.get(p).gun;
+            DeathMapEntry dme = playersShotDead.get(p);
+            long time = dme.timeStamp;
+            Player killer = dme.shooter;
+            Guns.Gun gun = dme.gun;
+            boolean isHeadshot = dme.isHeadshot;
             String gunName = gun != null ? gun.name : null;
             if (System.currentTimeMillis() - time < 100) {
-                String message = p.getName() + " was shot dead" + " by " + killer.getName();
+                String shotMsg = " was shot dead";
+                if (isHeadshot) {
+                    shotMsg = " was shot in the head";
+                }
+                String message = p.getName() + shotMsg + " by " + killer.getName();
                 if (gunName != null) {
                     message += " with a " + gunName;
                 }
@@ -416,9 +422,40 @@ public class GunEvents implements Listener {
                 }
             } else {
                 Entity hitEntity = e.getHitEntity();
-                if (hitEntity != null && e.getEntity().customName() != null) {
+                if (hitEntity != null && e.getEntity().customName() != null && hitEntity instanceof LivingEntity hitLEntity) {
+                    // calculate damage
+                    double projVel = e.getEntity().getVelocity().length();
+                    double weaponDamage = gun.damage * (projVel / gun.bulletSpeed);
+                    Location projectileLoc = e.getEntity().getLocation();
+                    Vector directionVector = e.getEntity().getVelocity().normalize();
+                    // check if headshot
+                    Location head = hitLEntity.getEyeLocation();
+                    Vector headToFire = head.toVector().subtract(projectileLoc.clone().subtract(directionVector).toVector());
+                    // Project this vector onto the direction vector to get the vector from the head location to the nearest point on the line
+                    Vector projection = directionVector.multiply(headToFire.dot(directionVector) / directionVector.lengthSquared());
+
+                    // Calculate the vector from the head location to the nearest point on the line
+                    Vector headToNearestPoint = headToFire.subtract(projection);
+                    Location closestPoint = head.clone().add(headToNearestPoint);
+                    // If this distance is less than 0.35, it's a headshot
+                    // For some reason arrows still hit the head even if they are shot over the head (Minecraft problem, not mine)
+                    boolean isShotOverHead = closestPoint.getY() < hitLEntity.getEyeLocation().getY() - 0.25;
+                    boolean isHeadshot = headToNearestPoint.length() < 0.35;
+                    //boolean isHeadshot = headBox.contains(closestPoint.toVector());
+                    if (isHeadshot) {
+                        weaponDamage *= 1.7;
+                    }
+                    if (isShotOverHead) {
+                        // let arrow fly over head
+                        // fuck you, Minecraft
+                        e.setCancelled(true);
+                        Location newArrowLoc = e.getEntity().getLocation().add(e.getEntity().getVelocity().multiply(0.5));
+                        Arrow newArrow = shootBullet((Player) shooter, newArrowLoc, gun, e.getEntity().getVelocity());
+                        playNormalGunEffects(e.getEntity().getLocation(), newArrow, gun, false, false);
+                        return;
+                    }
                     // Spawn blood particles
-                    Location hitLoc = hitEntity.getLocation().add(0, 1, 0);
+                    Location hitLoc = hitLEntity.getLocation().add(0, 1, 0);
                     Vector bloodDir = e.getEntity().getLocation().subtract(hitLoc).toVector().normalize();
                     hitLoc.getWorld().spawnParticle(Particle.BLOCK_CRACK, hitLoc.add(bloodDir.multiply(0.5)), 15, bloodDir.getX(), bloodDir.getY(), bloodDir.getZ(), 0.001, Material.REDSTONE_BLOCK.createBlockData());
                     new BukkitRunnable() {
@@ -427,32 +464,27 @@ public class GunEvents implements Listener {
                         @Override
                         public void run() {
                             times++;
-                            if (times >= 6 || !hitEntity.isValid() || hitEntity.isDead()) {
+                            if (times >= 6 || !hitLEntity.isValid() || hitLEntity.isDead()) {
                                 cancel();
                             }
-                            hitLoc.getWorld().spawnParticle(Particle.BLOCK_CRACK, hitEntity.getLocation().add(0, 1, 0).add(bloodDir.multiply(0.1)), 3, 0.15, 0.15, 0.15, 0.001, Material.REDSTONE_BLOCK.createBlockData());
+                            hitLoc.getWorld().spawnParticle(Particle.BLOCK_CRACK, hitLEntity.getLocation().add(0, 1, 0).add(bloodDir.multiply(0.1)), 3, 0.15, 0.15, 0.15, 0.001, Material.REDSTONE_BLOCK.createBlockData());
                         }
                     }.runTaskTimer(GrandTheftMinecraft.instance, 0L, 17L);
-
-                    // calculate damage
-                    double projVel = e.getEntity().getVelocity().length();
-                    double weaponDamage = gun.damage * (projVel / gun.bulletSpeed);
                     // apply damage
-                    if ((hitEntity instanceof LivingEntity)) {
-                        ((LivingEntity) hitEntity).setKiller((Player) shooter);
-                        if (((LivingEntity) hitEntity).getHealth()-weaponDamage <= 0) {
-                            //GrandTheftMinecraft.sendDebugMessage("Player " + ((Player) shooter).getName() + " shot " + hitEntity.getName() + " dead");
-                            if (hitEntity instanceof Player p) {
-                                playersShotDead.put(p, new DeathMapEntry(System.currentTimeMillis(), (Player) shooter, gun));
-                            }
+                    hitLEntity.setKiller((Player) shooter);
+                    if (hitLEntity.getHealth() - weaponDamage <= 0) {
+                        //GrandTheftMinecraft.sendDebugMessage("Player " + ((Player) shooter).getName() + " shot " + hitEntity.getName() + " dead");
+                        if (hitLEntity instanceof Player p) {
+                            playersShotDead.put(p, new DeathMapEntry(System.currentTimeMillis(), (Player) shooter, gun, isHeadshot));
                         }
-                        ((LivingEntity) hitEntity).damage(weaponDamage, (Entity) shooter);
-                        ((LivingEntity) hitEntity).setNoDamageTicks(0);
                     }
+                    //((LivingEntity) hitEntity).damage(weaponDamage, (Entity) shooter);
+                    hitLEntity.damage(weaponDamage, e.getEntity());
+                    hitLEntity.setNoDamageTicks(0);
                     e.setCancelled(true);
                     // knockback
                     Vector damageVel = e.getEntity().getVelocity().normalize().multiply(0.05 * weaponDamage);
-                    hitEntity.setVelocity(hitEntity.getVelocity().multiply(0.7).add(damageVel));
+                    hitLEntity.setVelocity(hitLEntity.getVelocity().multiply(0.7).add(damageVel));
                     e.getEntity().remove();
                 }
             }
@@ -594,7 +626,6 @@ public class GunEvents implements Listener {
         World world = player.getWorld();
         Location playerEyeLocation = player.getEyeLocation();
         Vector direction = playerEyeLocation.getDirection();
-
         BlockIterator iterator = new BlockIterator(world, playerEyeLocation.toVector(), direction, 0, maxDistance);
         Location hitLocation = null;
 
