@@ -2,6 +2,7 @@ package de.chefexperte.grandtheftminecraft;
 
 import de.chefexperte.grandtheftminecraft.commands.GetAmmoCommand;
 import de.chefexperte.grandtheftminecraft.commands.GetGunCommand;
+import de.chefexperte.grandtheftminecraft.commands.SpawnPoliceCommand;
 import de.chefexperte.grandtheftminecraft.events.GunEvents;
 import de.chefexperte.grandtheftminecraft.guns.Guns;
 import net.kyori.adventure.text.Component;
@@ -27,8 +28,9 @@ public final class GrandTheftMinecraft extends JavaPlugin {
         instance = this;
         Guns.init();
         getLogger().info("Welcome to Grand Theft Minecraft!");
-        this.getServer().getCommandMap().register("get-gun", new GetGunCommand());
-        this.getServer().getCommandMap().register("get-ammo", new GetAmmoCommand());
+        this.getServer().getCommandMap().register("gtm", new GetGunCommand());
+        this.getServer().getCommandMap().register("gtm", new GetAmmoCommand());
+        this.getServer().getCommandMap().register("gtm", new SpawnPoliceCommand());
         this.getServer().getPluginManager().registerEvents(new GunEvents(), this);
     }
 
