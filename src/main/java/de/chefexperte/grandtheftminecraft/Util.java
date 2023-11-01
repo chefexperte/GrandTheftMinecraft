@@ -2,12 +2,18 @@ package de.chefexperte.grandtheftminecraft;
 
 import de.chefexperte.grandtheftminecraft.guns.Guns;
 import net.kyori.adventure.text.Component;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Zombie;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.scoreboard.Scoreboard;
+import org.bukkit.scoreboard.ScoreboardManager;
+import org.bukkit.scoreboard.Team;
 
 public class Util {
     public record PriorityItem<T>(double priority, T item) {
@@ -159,6 +165,22 @@ public class Util {
             return Guns.AmmoType.fromId(customModelData);
         }
         return null;
+    }
+
+    public static boolean isPoliceOfficer(Entity entity) {
+        if (entity == null) return false;
+        return entity.getPersistentDataContainer().has(new NamespacedKey("gtm", "police"), PersistentDataType.BYTE);
+    }
+
+    public static void hideNickname(Entity e) {
+        Scoreboard score = GrandTheftMinecraft.instance.scoreboard;
+        Team t = score.getTeam("nhide");
+        if(t == null) {
+            t = score.registerNewTeam("nhide");
+            t.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
+            //t.setOption(Team.Option.DEATH_MESSAGE_VISIBILITY, Team.OptionStatus.NEVER);
+        }
+        t.addEntity(e);
     }
 
 }
