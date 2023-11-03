@@ -3,7 +3,6 @@ package de.chefexperte.grandtheftminecraft;
 import com.comphenix.protocol.PacketType;
 import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.ProtocolManager;
-import com.comphenix.protocol.events.ListenerPriority;
 import com.comphenix.protocol.events.PacketAdapter;
 import com.comphenix.protocol.events.PacketContainer;
 import com.comphenix.protocol.events.PacketEvent;
@@ -25,9 +24,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.ScoreboardManager;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
+import org.bukkit.scoreboard.Team;
 
 import java.util.*;
 
@@ -73,6 +70,8 @@ public final class GrandTheftMinecraft extends JavaPlugin {
         instance = this;
         ScoreboardManager manager = Bukkit.getScoreboardManager();
         scoreboard = manager.getMainScoreboard();
+        setupTeam();
+        // set nametag visibility
         if (!isProtocolLibLoaded()) {
             getLogger().warning("ProtocolLib is not installed! This plugin will not work without it!");
             return;
@@ -85,6 +84,15 @@ public final class GrandTheftMinecraft extends JavaPlugin {
         this.getServer().getPluginManager().registerEvents(new GunEvents(), this);
         this.getServer().getPluginManager().registerEvents(new PoliceOfficerEvents(), this);
         enableProtocolListener();
+    }
+
+    private void setupTeam() {
+        // check if team exists
+        Team t = scoreboard.getTeam("nhide");
+        if (t == null) {
+            t = scoreboard.registerNewTeam("nhide");
+        }
+        t.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
     }
 
     public void onLoad() {
@@ -100,26 +108,20 @@ public final class GrandTheftMinecraft extends JavaPlugin {
             @Override
             public void onPacketSending(PacketEvent event) {
                 PacketContainer packet = event.getPacket();
-                // spawn a player instead of police officer zombie
-//                if (packet.getEntityTypeModifier().read(0) != EntityType.ZOMBIE) {
-//                    return;
-//                }
-
-                UUID uuid = UUID.randomUUID();
-                packet.getEntityTypeModifier().write(0, EntityType.PLAYER);
-                packet.getUUIDs().write(0, uuid);
-                // check if custom name is "Police Officer"
                 var ent = packet.getEntityModifier(event).read(0);
-                //Util.hideNickname(ent);
-                //Component customNameComp = ent.name();
-                //if (!customNameComp.equals(Component.text("Police Officer"))) {
-                //    return;
-                //}
                 // check if persistent data container has "gtm.police" key
+                if (ent == null) {
+                    return;
+                }
                 PersistentDataContainer c = ent.getPersistentDataContainer();
                 if (!c.has(new NamespacedKey("gtm", "police"), PersistentDataType.BYTE)) {
                     return;
                 }
+
+                // spawn a player instead of police officer zombie
+                UUID uuid = UUID.randomUUID();
+                packet.getEntityTypeModifier().write(0, EntityType.PLAYER);
+                packet.getUUIDs().write(0, uuid);
                 // append random number to name
                 String name = "PoliceOfficer" + random.nextInt(1000);
                 int latency = 0;
@@ -137,13 +139,12 @@ public final class GrandTheftMinecraft extends JavaPlugin {
                 WrappedGameProfile profile = p.getPlayerInfoDataLists().read(1).get(0).getProfile();
                 setProfileTexture(profile, playerTextures.get("Police Officer"));
                 protocolManager.sendServerPacket(event.getPlayer(), p);
-                //PacketContainer p2 = protocolManager.createPacket(PacketType.Play.Server.SCOREBOARD_TEAM);
-                //p2.getStrings().write(0, "nhide");
-                //p2.getIntegers().write(0, 3);
-                //p2.getStrings().write(1, name);
-                //p2.getStringArrays().write(0, new String[]{name});
-                //protocolManager.sendServerPacket(event.getPlayer(), p2);
-
+                PacketContainer p2 = protocolManager.createPacket(PacketType.Play.Server.SCOREBOARD_TEAM);
+                p2.getStrings().write(0, "nhide");
+                p2.getIntegers().write(0, 3);
+                p2.getModifier().withType(Collection.class, BukkitConverters.getListConverter(Converters.passthrough(String.class)))
+                        .write(0, Collections.singletonList(name));
+                protocolManager.sendServerPacket(event.getPlayer(), p2);
             }
         });
         protocolManager.addPacketListener(new PacketAdapter(instance, PacketType.Play.Server.PLAYER_INFO) {

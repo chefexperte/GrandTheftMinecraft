@@ -1,6 +1,7 @@
 package de.chefexperte.grandtheftminecraft.events;
 
 import de.chefexperte.grandtheftminecraft.GrandTheftMinecraft;
+import de.chefexperte.grandtheftminecraft.PacketUtils;
 import de.chefexperte.grandtheftminecraft.Util;
 import de.chefexperte.grandtheftminecraft.guns.Guns;
 import de.chefexperte.grandtheftminecraft.guns.RecoilPatterns;
@@ -14,6 +15,7 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.*;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
@@ -107,6 +109,7 @@ public class GunEvents implements Listener {
                 } else {
                     GrandTheftMinecraft.instance.getLogger().warning("Unknown gun type: " + g.name);
                 }
+                e.setCancelled(true);
             }
         }
     }
@@ -410,7 +413,7 @@ public class GunEvents implements Listener {
             if (hitBlock != null) {
                 Material hitMat = hitBlock.getType();
                 // spawn block break particles
-                spawnBulletHitParticles(e.getEntity(), hitMat, e.getHitBlockFace());
+                spawnBulletHitParticles(hitBlock, e.getEntity(), e.getHitBlockFace());
                 e.getEntity().remove();
                 if (isGlass(hitMat) && gun != Guns.ROCKET_LAUNCHER) {
                     hitBlock.breakNaturally();
@@ -495,7 +498,18 @@ public class GunEvents implements Listener {
         }
     }
 
-    private void spawnBulletHitParticles(Entity e, Material hitMat, BlockFace hitFace) {
+    private void spawnBulletHitParticles(Block hitBlock, Entity e, BlockFace hitFace) {
+        Material hitMat = hitBlock.getType();
+        // play break block packet
+        final int id = GrandTheftMinecraft.random.nextInt();
+        PacketUtils.sendBlockBreakAnimation(hitBlock, id, 3);
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                PacketUtils.sendBlockBreakAnimation(hitBlock, id, 10);
+            }
+        }.runTaskLater(GrandTheftMinecraft.instance, 20 * 20); // 20 seconds
+        // play effects
         new BukkitRunnable() {
             @Override
             public void run() {

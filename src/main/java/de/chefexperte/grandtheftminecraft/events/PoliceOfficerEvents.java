@@ -1,19 +1,13 @@
 package de.chefexperte.grandtheftminecraft.events;
 
-import de.chefexperte.grandtheftminecraft.GrandTheftMinecraft;
 import de.chefexperte.grandtheftminecraft.Util;
-import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.scoreboard.ScoreboardManager;
-import org.bukkit.scoreboard.Team;
 
 public class PoliceOfficerEvents implements Listener {
 
@@ -31,6 +25,7 @@ public class PoliceOfficerEvents implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent e){
+
         boolean isPolice = Util.isPoliceOfficer(e.getPlayer());
         if (!isPolice) {
             //GrandTheftMinecraft.sendDebugMessage("Player " + e.getPlayer().getName() + " is not a police officer");
