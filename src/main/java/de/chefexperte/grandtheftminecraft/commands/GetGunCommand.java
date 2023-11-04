@@ -1,7 +1,7 @@
 package de.chefexperte.grandtheftminecraft.commands;
 
 import de.chefexperte.grandtheftminecraft.GrandTheftMinecraft;
-import de.chefexperte.grandtheftminecraft.Util;
+import de.chefexperte.grandtheftminecraft.util.Util;
 import de.chefexperte.grandtheftminecraft.guns.Guns;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;

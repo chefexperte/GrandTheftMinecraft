@@ -1,17 +1,14 @@
 package de.chefexperte.grandtheftminecraft.events;
 
 import de.chefexperte.grandtheftminecraft.GrandTheftMinecraft;
-import de.chefexperte.grandtheftminecraft.PacketUtils;
-import de.chefexperte.grandtheftminecraft.Util;
+import de.chefexperte.grandtheftminecraft.util.PacketUtils;
+import de.chefexperte.grandtheftminecraft.util.Util;
 import de.chefexperte.grandtheftminecraft.guns.Guns;
 import de.chefexperte.grandtheftminecraft.guns.RecoilPatterns;
 import io.papermc.paper.entity.TeleportFlag;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.Particle;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.*;
@@ -21,10 +18,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.player.PlayerDropItemEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerItemHeldEvent;
-import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.event.player.*;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -36,11 +30,15 @@ import org.bukkit.util.Vector;
 
 import java.util.*;
 
-import static de.chefexperte.grandtheftminecraft.Util.*;
+import static de.chefexperte.grandtheftminecraft.util.Util.*;
 
 public class GunEvents implements Listener {
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent e) {
+        if (isGun(e.getItem())) {
+            e.setUseItemInHand(Event.Result.DENY);
+            e.setCancelled(true);
+        }
         if (e.getAction().isRightClick()) {
             if (isGun(e.getItem())) {
                 World world = e.getPlayer().getWorld();
@@ -117,7 +115,6 @@ public class GunEvents implements Listener {
     @EventHandler
     public void onPlayerSwapHandItems(PlayerItemHeldEvent e) {
         ItemStack prev = e.getPlayer().getInventory().getItem(e.getPreviousSlot());
-        ItemStack next = e.getPlayer().getInventory().getItem(e.getNewSlot());
         if (isGun(prev)) {
             //e.setCancelled(true);
             if (Util.isGunReloading(prev)) {

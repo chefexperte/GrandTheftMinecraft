@@ -1,15 +1,13 @@
 package de.chefexperte.grandtheftminecraft.commands;
 
-import de.chefexperte.grandtheftminecraft.Util;
+import de.chefexperte.grandtheftminecraft.util.Util;
 import de.chefexperte.grandtheftminecraft.guns.Guns;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;

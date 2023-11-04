@@ -9,16 +9,21 @@ import com.comphenix.protocol.events.PacketEvent;
 import com.comphenix.protocol.wrappers.*;
 import de.chefexperte.grandtheftminecraft.commands.GetAmmoCommand;
 import de.chefexperte.grandtheftminecraft.commands.GetGunCommand;
+import de.chefexperte.grandtheftminecraft.commands.SpawnCivilianCommand;
 import de.chefexperte.grandtheftminecraft.commands.SpawnPoliceCommand;
+import de.chefexperte.grandtheftminecraft.events.CivilianEvents;
 import de.chefexperte.grandtheftminecraft.events.GunEvents;
 import de.chefexperte.grandtheftminecraft.events.PoliceOfficerEvents;
 import de.chefexperte.grandtheftminecraft.guns.Guns;
+import de.chefexperte.grandtheftminecraft.util.CivilianUtil;
+import de.chefexperte.grandtheftminecraft.util.PoliceUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Zombie;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -52,10 +57,14 @@ public final class GrandTheftMinecraft extends JavaPlugin {
             put("Trevor", new PlayerTexture(
                     "ewogICJ0aW1lc3RhbXAiIDogMTYxODgzNDk4NjcyMiwKICAicHJvZmlsZUlkIiA6ICJkZTU3MWExMDJjYjg0ODgwOGZlN2M5ZjQ0OTZlY2RhZCIsCiAgInByb2ZpbGVOYW1lIiA6ICJNSEZfTWluZXNraW4iLAogICJzaWduYXR1cmVSZXF1aXJlZCIgOiB0cnVlLAogICJ0ZXh0dXJlcyIgOiB7CiAgICAiU0tJTiIgOiB7CiAgICAgICJ1cmwiIDogImh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvOWUyMDZjODJkOTAyMThjOGVhY2U1NzU5ZmZmOTdjNDcyZGIwYzc0Y2ZiZDE3ODEwYjQxYjQxYTI0ZTAyZmQxOCIKICAgIH0KICB9Cn0=",
                     "ofq3SaJOnAyZwifbdvHQ5gHVwLBeOM5F71+VRIYyf6efW3cFBWabkV0PF5SN+wJ7PitMzq0bEhRxrH9eRx3BRa8of8BY4IFZkjuZLKSzkIAs5Mbkd+ZVsRFFPMLGyeS08ZKxJrxQaed9girWc00Ir4rGKWyojJ/MuJ5+pnNxp7gkSXU1803w60gzNfA99hJW359qkAzpxzNcR65a2/uAeiGAHxqJZIUEgfrC9hleoQ/m7H1HCTSjioVp8TkeovGwrJCQaeWF5419tHWms1FxSh/GksSnmgWZB2Izq6DxT/7uq6dZDWknwSg403I/fRBbRrQZM7ltLMjbqi6YWb6m1Zlj3MrMYIxkMEGq7BidTPIDnFSqVRZMRGXFQal6I/jQc8wylbf//HxB6Wr491YcUi6qbWCDLKhcSZ64WsJ5XoeraJk5C4mWFZPJY7aA8BsPTkG1oDmNQMJwnsvndaLK2PyRQogmaDy4FA/nWQWDgHUMBsJynGB1/x4ZoOMbuvPtpGgfAcJkI/VyXii+yN3x3IQNS2IHPhsQBLC0CTAouGR/XWVl94lXLrArF9Zoljp5V+OKjs6EhlFCeU/KBYQGap/Is783gXWVJ2eYxr1C7PBKEuewb2uCs1ecwtepfbRb+4K71RtU+CQguU9dimhjvAjjTv/DR6hjTanHw4jFGZc="));
+            put("Suit Villager", new PlayerTexture(
+                    "ewogICJ0aW1lc3RhbXAiIDogMTY0MjIwNTI3MDE0MywKICAicHJvZmlsZUlkIiA6ICJkMWY2OTc0YzE2ZmI0ZjdhYjI1NjU4NzExNjM3M2U2NSIsCiAgInByb2ZpbGVOYW1lIiA6ICJGaW9saWVzdGEiLAogICJzaWduYXR1cmVSZXF1aXJlZCIgOiB0cnVlLAogICJ0ZXh0dXJlcyIgOiB7CiAgICAiU0tJTiIgOiB7CiAgICAgICJ1cmwiIDogImh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNzQyMTIxMzQ2MDUzODQ2YjUwNmVhYzBlNWYwZDA2YjBiY2YyYmVhYjRkN2Q5NmY2ZDVhZjFhNGFlZmMzYTg4NyIsCiAgICAgICJtZXRhZGF0YSIgOiB7CiAgICAgICAgIm1vZGVsIiA6ICJzbGltIgogICAgICB9CiAgICB9CiAgfQp9",
+                    "JjXj+WhqLqhd/Z4/qgFopmIseg1wF3TxNrG+tcZR73ibBa9Jes7EFKPfLkLiUhDhJBppgkNop9wlwT1cTH6QvCPYPvdpaQc1XCDDurfbIAmY1SC9j2/FVy7ADhVh5mXJ3QVhAHi0qzfQCApSAPBRR5L+nkOglPvAgtwd8mKg+KvPwzoPoOK/B/EnBXSj/2QQaRBDUd8o5imJJXH/ZFtY8kyecq6xnPfLRW4mwen8tzqSrvqmI+mJBpP32Q+6CZe8cOwK5Q6+VlfF2nvPcXHmhAbK3s7zhqaieX2mYLIXbBshK9gnm7LxanjWWLhGWfU8LElJdUmBPjSEZjsXqcy4X1gWHZQvKikQllJxDfkR1+UpuWYsrd72hZFrd9RFZzJfo0B9BlYu7T0RPlrDKd2eYchGCYNTK5SgCDdjkFpgZ9jCQAgU+JFMy/swYa6FJM3n2XGMNkT7hk3JMjSBreML7OxUOTyxsIlI+eXw1ISizB4/yGMX2OOL6ddE54uSDaYNnuZJxTiWjpKVe4afV+9nF5adj92hsKQrTJu011eYI5BEv0TdZmXdn1yYPAmdDROb7i4Rke/HLagCI8Qp9+E0i71C8aij7p6T9Zl4WDGP5pqA0Te1WAF2j8mdTp3ZkdbBWbOc5WSbWLe99uBBlqkB3vTvEfAE+igCDMlCudRbVTs="));
+
         }
     };
 
-    Scoreboard scoreboard;
+    public Scoreboard scoreboard;
 
 
     public static void sendDebugMessage(String msg) {
@@ -70,8 +79,8 @@ public final class GrandTheftMinecraft extends JavaPlugin {
         instance = this;
         ScoreboardManager manager = Bukkit.getScoreboardManager();
         scoreboard = manager.getMainScoreboard();
-        setupTeam();
         // set nametag visibility
+        setupTeam();
         if (!isProtocolLibLoaded()) {
             getLogger().warning("ProtocolLib is not installed! This plugin will not work without it!");
             return;
@@ -81,8 +90,10 @@ public final class GrandTheftMinecraft extends JavaPlugin {
         this.getServer().getCommandMap().register("gtm", new GetGunCommand());
         this.getServer().getCommandMap().register("gtm", new GetAmmoCommand());
         this.getServer().getCommandMap().register("gtm", new SpawnPoliceCommand());
+        this.getServer().getCommandMap().register("gtm", new SpawnCivilianCommand());
         this.getServer().getPluginManager().registerEvents(new GunEvents(), this);
         this.getServer().getPluginManager().registerEvents(new PoliceOfficerEvents(), this);
+        this.getServer().getPluginManager().registerEvents(new CivilianEvents(), this);
         enableProtocolListener();
     }
 
@@ -114,37 +125,21 @@ public final class GrandTheftMinecraft extends JavaPlugin {
                     return;
                 }
                 PersistentDataContainer c = ent.getPersistentDataContainer();
-                if (!c.has(new NamespacedKey("gtm", "police"), PersistentDataType.BYTE)) {
+                if (!c.has(new NamespacedKey("gtm", "fake"), PersistentDataType.BYTE)) {
                     return;
                 }
-
                 // spawn a player instead of police officer zombie
                 UUID uuid = UUID.randomUUID();
                 packet.getEntityTypeModifier().write(0, EntityType.PLAYER);
                 packet.getUUIDs().write(0, uuid);
-                // append random number to name
-                String name = "PoliceOfficer" + random.nextInt(1000);
-                int latency = 0;
+                if (c.has(new NamespacedKey("gtm", "police"), PersistentDataType.BYTE)) {
+                    PoliceUtil.entitySpawnListener(event.getPlayer(), uuid);
+                    PoliceUtil.policeOfficers.put(ent.getEntityId(), new PoliceUtil.PoliceOfficer((Zombie) ent, uuid));
+                }
+                if (c.has(new NamespacedKey("gtm", "civilian"), PersistentDataType.BYTE)) {
+                    CivilianUtil.entitySpawnListener(event.getPlayer(), uuid);
+                }
 
-                PacketContainer p = protocolManager.createPacket(PacketType.Play.Server.PLAYER_INFO);
-                p.getPlayerInfoActions().write(0, EnumSet.of(EnumWrappers.PlayerInfoAction.ADD_PLAYER, EnumWrappers.PlayerInfoAction.UPDATE_LISTED));
-                p.getPlayerInfoDataLists().write(1, Collections.singletonList(new PlayerInfoData(
-                        uuid,
-                        latency,
-                        true,
-                        EnumWrappers.NativeGameMode.SURVIVAL,
-                        new WrappedGameProfile(uuid, name),
-                        WrappedChatComponent.fromText(name)
-                )));
-                WrappedGameProfile profile = p.getPlayerInfoDataLists().read(1).get(0).getProfile();
-                setProfileTexture(profile, playerTextures.get("Police Officer"));
-                protocolManager.sendServerPacket(event.getPlayer(), p);
-                PacketContainer p2 = protocolManager.createPacket(PacketType.Play.Server.SCOREBOARD_TEAM);
-                p2.getStrings().write(0, "nhide");
-                p2.getIntegers().write(0, 3);
-                p2.getModifier().withType(Collection.class, BukkitConverters.getListConverter(Converters.passthrough(String.class)))
-                        .write(0, Collections.singletonList(name));
-                protocolManager.sendServerPacket(event.getPlayer(), p2);
             }
         });
         protocolManager.addPacketListener(new PacketAdapter(instance, PacketType.Play.Server.PLAYER_INFO) {
@@ -188,10 +183,14 @@ public final class GrandTheftMinecraft extends JavaPlugin {
         }
     }
 
-    private void setProfileTexture(WrappedGameProfile profile, PlayerTexture pTexture) {
+    public static void setProfileTexture(WrappedGameProfile profile, PlayerTexture pTexture) {
         WrappedSignedProperty texture = new WrappedSignedProperty("textures", pTexture.value, pTexture.signature);
         profile.getProperties().removeAll("textures");
         profile.getProperties().put("textures", texture);
+    }
+
+    public static PlayerTexture getPlayerTexture(String name) {
+        return playerTextures.get(name);
     }
 
     @Override

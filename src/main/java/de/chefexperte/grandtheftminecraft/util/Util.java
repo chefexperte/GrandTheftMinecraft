@@ -1,18 +1,16 @@
-package de.chefexperte.grandtheftminecraft;
+package de.chefexperte.grandtheftminecraft.util;
 
+import de.chefexperte.grandtheftminecraft.GrandTheftMinecraft;
 import de.chefexperte.grandtheftminecraft.guns.Guns;
 import net.kyori.adventure.text.Component;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
-import org.bukkit.entity.Zombie;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.scoreboard.ScoreboardManager;
 import org.bukkit.scoreboard.Team;
 
 public class Util {
@@ -170,6 +168,11 @@ public class Util {
     public static boolean isPoliceOfficer(Entity entity) {
         if (entity == null) return false;
         return entity.getPersistentDataContainer().has(new NamespacedKey("gtm", "police"), PersistentDataType.BYTE);
+    }
+
+    public static boolean isCivilian(Entity entity) {
+        if (entity == null) return false;
+        return entity.getPersistentDataContainer().has(new NamespacedKey("gtm", "civilian"), PersistentDataType.BYTE);
     }
 
     public static void hideNickname(Entity e) {

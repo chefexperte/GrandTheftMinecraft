@@ -1,20 +1,20 @@
 package de.chefexperte.grandtheftminecraft.commands;
 
-import de.chefexperte.grandtheftminecraft.util.PoliceUtil;
+import de.chefexperte.grandtheftminecraft.util.CivilianUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.*;
+import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
 
-public class SpawnPoliceCommand extends Command {
+public class SpawnCivilianCommand extends Command {
 
-    private static final String usageMessage = "/spawn-police";
+    private static final String usageMessage = "/spawn-civilian";
 
-    public SpawnPoliceCommand() {
-        super("spawn-police", "Spawns a police officer", usageMessage, Arrays.asList("spawn-police", "spawnpolice"));
+    public SpawnCivilianCommand() {
+        super("spawn-civilian", "Spawns a civilian", usageMessage, Arrays.asList("spawn-civilian", "spawncivilian"));
     }
 
     @Override
@@ -23,7 +23,7 @@ public class SpawnPoliceCommand extends Command {
             sender.sendMessage(Component.text("You must be a player to use this command!"));
             return true;
         }
-        PoliceUtil.spawnPoliceOfficer(player.getWorld(), player.getLocation());
+        CivilianUtil.spawnCivilian(player.getWorld(), player.getLocation());
         return true;
     }
 }
