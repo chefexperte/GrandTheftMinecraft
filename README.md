@@ -32,6 +32,27 @@ This is a Minecraft Server plugin for Paper, for game version 1.20.2.
   - [ ] 12 gauge
 - [ ] Magazines
 
+### Civilians
+- [x] Civilians spawn
+  - [ ] In cities
+- [x] Civilians walk around
+- [ ] Civilians run away from you if you have a gun / wanted level
+- [ ] Civilians run away from gunshots
+- [ ] Civilians do stuff
+
+### Police
+- [x] Wanted level
+  - [x] Cops follow you
+  - [x] Line of sight checking
+  - [ ] Cops shoot at you
+- [x] Cops
+- [ ] Cops have guns
+- [ ] Police stations
+
+### Missions
+- [ ] There are characters that give you missions
+- [ ] Kind of a story
+
 ### Other
 - [x] Lots of visual effects
 - [x] Improved explosions
@@ -43,11 +64,15 @@ This is a Minecraft Server plugin for Paper, for game version 1.20.2.
 - [x] Headshots
 - [ ] Grenades
 - [ ] Armor
+  - [ ] Armor reduces damage
+  - [ ] Armor breaks
 - [ ] Molotovs
 - [ ] Melee weapons
 - [ ] Vehicles
 - [ ] NPCs
 - [ ] Missions
+- [ ] Money
+- [ ] Shops
 
 ## Commands
 `get-gun list` - List all guns  
