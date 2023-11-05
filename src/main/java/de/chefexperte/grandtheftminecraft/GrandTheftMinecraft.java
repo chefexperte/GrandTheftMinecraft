@@ -7,13 +7,11 @@ import com.comphenix.protocol.events.PacketAdapter;
 import com.comphenix.protocol.events.PacketContainer;
 import com.comphenix.protocol.events.PacketEvent;
 import com.comphenix.protocol.wrappers.*;
-import de.chefexperte.grandtheftminecraft.commands.GetAmmoCommand;
-import de.chefexperte.grandtheftminecraft.commands.GetGunCommand;
-import de.chefexperte.grandtheftminecraft.commands.SpawnCivilianCommand;
-import de.chefexperte.grandtheftminecraft.commands.SpawnPoliceCommand;
+import de.chefexperte.grandtheftminecraft.commands.*;
 import de.chefexperte.grandtheftminecraft.events.CivilianEvents;
 import de.chefexperte.grandtheftminecraft.events.GunEvents;
 import de.chefexperte.grandtheftminecraft.events.PoliceOfficerEvents;
+import de.chefexperte.grandtheftminecraft.events.WorldEvents;
 import de.chefexperte.grandtheftminecraft.guns.Guns;
 import de.chefexperte.grandtheftminecraft.util.CivilianUtil;
 import de.chefexperte.grandtheftminecraft.util.PoliceUtil;
@@ -94,6 +92,8 @@ public final class GrandTheftMinecraft extends JavaPlugin {
         this.getServer().getPluginManager().registerEvents(new GunEvents(), this);
         this.getServer().getPluginManager().registerEvents(new PoliceOfficerEvents(), this);
         this.getServer().getPluginManager().registerEvents(new CivilianEvents(), this);
+        this.getServer().getPluginManager().registerEvents(new WorldEvents(), this);
+
         enableProtocolListener();
     }
 

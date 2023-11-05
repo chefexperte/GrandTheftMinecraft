@@ -1,14 +1,17 @@
 package de.chefexperte.grandtheftminecraft.events;
 
 import de.chefexperte.grandtheftminecraft.GrandTheftMinecraft;
-import de.chefexperte.grandtheftminecraft.util.PacketUtils;
-import de.chefexperte.grandtheftminecraft.util.Util;
 import de.chefexperte.grandtheftminecraft.guns.Guns;
 import de.chefexperte.grandtheftminecraft.guns.RecoilPatterns;
+import de.chefexperte.grandtheftminecraft.util.PacketUtils;
+import de.chefexperte.grandtheftminecraft.util.Util;
 import io.papermc.paper.entity.TeleportFlag;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
-import org.bukkit.*;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.Particle;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.*;
@@ -18,7 +21,10 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.player.*;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -30,6 +36,7 @@ import org.bukkit.util.Vector;
 
 import java.util.*;
 
+import static de.chefexperte.grandtheftminecraft.util.PoliceUtil.checkDamageForCrime;
 import static de.chefexperte.grandtheftminecraft.util.Util.*;
 
 public class GunEvents implements Listener {
@@ -334,6 +341,7 @@ public class GunEvents implements Listener {
         //noinspection UnstableApiUsage
         a.setVisibleByDefault(false);
         a.setVelocity(customVelocity);
+        a.setShooter(p);
         return a;
     }
 
@@ -405,7 +413,7 @@ public class GunEvents implements Listener {
         String bulletName = ((TextComponent) Objects.requireNonNull(e.getEntity().customName())).content();
         Guns.Gun gun = Guns.getGunFromBulletName(bulletName);
         if (gun == null) return;
-        if (shooter instanceof Player) {
+        if (shooter instanceof Player p) {
             Block hitBlock = e.getHitBlock();
             if (hitBlock != null) {
                 Material hitMat = hitBlock.getType();
@@ -417,7 +425,7 @@ public class GunEvents implements Listener {
                     // let arrow fly through glass
                     //e.setCancelled(true);
                     Vector vel = e.getEntity().getVelocity().multiply(0.8);
-                    Arrow newArrow = shootBullet((Player) shooter, e.getEntity().getLocation(), gun, vel);
+                    Arrow newArrow = shootBullet(p, e.getEntity().getLocation(), gun, vel);
                     playNormalGunEffects(e.getEntity().getLocation(), newArrow, gun, false, false);
                 }
             } else {
@@ -450,7 +458,7 @@ public class GunEvents implements Listener {
                         // fuck you, Minecraft
                         e.setCancelled(true);
                         Location newArrowLoc = e.getEntity().getLocation().add(e.getEntity().getVelocity().multiply(0.5));
-                        Arrow newArrow = shootBullet((Player) shooter, newArrowLoc, gun, e.getEntity().getVelocity());
+                        Arrow newArrow = shootBullet(p, newArrowLoc, gun, e.getEntity().getVelocity());
                         playNormalGunEffects(e.getEntity().getLocation(), newArrow, gun, false, false);
                         return;
                     }
@@ -471,15 +479,16 @@ public class GunEvents implements Listener {
                         }
                     }.runTaskTimer(GrandTheftMinecraft.instance, 0L, 17L);
                     // apply damage
-                    hitLEntity.setKiller((Player) shooter);
+                    hitLEntity.setKiller(p);
                     if (hitLEntity.getHealth() - weaponDamage <= 0) {
                         //GrandTheftMinecraft.sendDebugMessage("Player " + ((Player) shooter).getName() + " shot " + hitEntity.getName() + " dead");
-                        if (hitLEntity instanceof Player p) {
-                            playersShotDead.put(p, new DeathMapEntry(System.currentTimeMillis(), (Player) shooter, gun, isHeadshot));
+                        if (hitLEntity instanceof Player pl) {
+                            playersShotDead.put(pl, new DeathMapEntry(System.currentTimeMillis(), (Player) shooter, gun, isHeadshot));
                         }
                     }
                     //((LivingEntity) hitEntity).damage(weaponDamage, (Entity) shooter);
                     hitLEntity.damage(weaponDamage, e.getEntity());
+                    checkDamageForCrime(hitEntity, p);
                     hitLEntity.setNoDamageTicks(0);
                     e.setCancelled(true);
                     // knockback

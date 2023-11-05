@@ -8,13 +8,14 @@ import org.bukkit.entity.*;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.Vector;
 
 import java.util.HashMap;
 import java.util.UUID;
 
 public class PoliceUtil {
 
-    public record PoliceOfficer(Zombie zombie, UUID uuid) {
+    public record PoliceOfficer(LivingEntity entity, UUID uuid) {
     }
 
     public static HashMap<Integer, PoliceOfficer> policeOfficers = new HashMap<>();
@@ -56,16 +57,44 @@ public class PoliceUtil {
         PacketUtils.entitySpawnListener(p, uuid, "PoliceOfficer", "Police Officer", true);
     }
 
-    public static boolean canCrimeBeSeen(Location crimeLocation) {
+    public static boolean canCrimeBeSeen(Location crimeLocation, double officerFOV) {
 
         // check direct line of sight to police officers
         for (PoliceOfficer officer : policeOfficers.values()) {
-            if (officer.zombie.hasLineOfSight(crimeLocation)) {
+            boolean hasLineOfSight = officer.entity.hasLineOfSight(crimeLocation);
+            boolean isInFOV = isInFOV(officer.entity, crimeLocation, officerFOV);
+            if (hasLineOfSight && isInFOV) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static boolean isInFOV(Entity entity, Location target, double fov) {
+        Vector directionFacing = entity.getLocation().getDirection().normalize();
+        Vector directionToTarget = target.clone().subtract(entity.getLocation()).toVector().normalize();
+
+        double angle = Math.toDegrees(Math.acos(directionFacing.dot(directionToTarget)));
+
+        return angle <= fov;
+    }
+
+    public static void checkDamageForCrime(Entity hitEntity, Entity damager) {
+        boolean isCrime = (Util.isCivilian(hitEntity) || Util.isPoliceOfficer(hitEntity));
+        boolean damagerIsPlayer = damager instanceof Player;
+        boolean damagerIsPlayerShot = damager instanceof Arrow && ((Arrow) damager).getShooter() instanceof Player;
+        boolean isHitEntityPoliceOfficer = Util.isPoliceOfficer(hitEntity);
+        if (isCrime && (damagerIsPlayer || damagerIsPlayerShot)) {
+            if (Util.isPoliceOfficer(damager)) {
+                // do nothing, police officers can hit civilians
+            } else {
+                double fov = isHitEntityPoliceOfficer ? 120 : 70;
+                if (PoliceUtil.canCrimeBeSeen(damager.getLocation(), fov)) {
+                    WantedLevel.setWantedLevel(damager, WantedLevel.getWantedLevel(damager) + 1);
+                }
+            }
+        }
     }
 
 }
