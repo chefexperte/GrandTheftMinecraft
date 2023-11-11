@@ -25,11 +25,15 @@ import org.bukkit.entity.Zombie;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.ScoreboardManager;
 import org.bukkit.scoreboard.Team;
+import org.bukkit.util.Vector;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Random;
+import java.util.UUID;
 
 public final class GrandTheftMinecraft extends JavaPlugin {
 
@@ -64,6 +68,11 @@ public final class GrandTheftMinecraft extends JavaPlugin {
 
     public Scoreboard scoreboard;
 
+    public record PlayerPosRot(double x, double y, double z, float yaw, float pitch) {
+    }
+
+    public static final HashMap<Player, PlayerPosRot> playerPosRots = new HashMap<>();
+
 
     public static void sendDebugMessage(String msg) {
         for (Player p : GrandTheftMinecraft.instance.getServer().getOnlinePlayers()) {
@@ -89,6 +98,7 @@ public final class GrandTheftMinecraft extends JavaPlugin {
         this.getServer().getCommandMap().register("gtm", new GetAmmoCommand());
         this.getServer().getCommandMap().register("gtm", new SpawnPoliceCommand());
         this.getServer().getCommandMap().register("gtm", new SpawnCivilianCommand());
+        this.getServer().getCommandMap().register("gtm", new TestCommand());
         this.getServer().getPluginManager().registerEvents(new GunEvents(), this);
         this.getServer().getPluginManager().registerEvents(new PoliceOfficerEvents(), this);
         this.getServer().getPluginManager().registerEvents(new CivilianEvents(), this);
@@ -142,6 +152,31 @@ public final class GrandTheftMinecraft extends JavaPlugin {
 
             }
         });
+
+        // Clientbound Packet info:
+
+        // PacketType.Play.Server.ENTITY_LOOK
+        // called when updating pitch!
+        // this also updates the body rotation
+
+        // PacketType.Play.Server.ENTITY_HEAD_ROTATION
+        // called when updating yaw!
+        // does not affect body rotation
+
+        // PacketType.Play.Server.REL_ENTITY_MOVE_LOOK
+        // relative, player can also sink into the ground and stuff
+        // does also affect body rotation, but only head pitch
+        // will only be called when rotating head WHILE moving
+
+        // PacketType.Play.Server.REL_ENTITY_MOVE
+        // relative, player can also sink into the ground and stuff
+        // does also affect body rotation, but not head rotation
+        // will only be called when moving while NOT rotating head
+
+        // PacketType.Play.Server.ENTITY_TELEPORT
+        // gets called on teleport, or when jumping or landing
+        // this also updates the body rotation
+
         protocolManager.addPacketListener(new PacketAdapter(instance, PacketType.Play.Server.PLAYER_INFO) {
             @Override
             public void onPacketSending(PacketEvent event) {
@@ -152,6 +187,129 @@ public final class GrandTheftMinecraft extends JavaPlugin {
                 preparePlayerInfoPacket(event);
             }
         });
+        protocolManager.addPacketListener(new PacketAdapter(instance, PacketType.Play.Client.LOOK) {
+            @Override
+            public void onPacketReceiving(PacketEvent event) {
+                PacketContainer packet = event.getPacket();
+                handleRotate(event, packet);
+            }
+        });
+        protocolManager.addPacketListener(new PacketAdapter(instance, PacketType.Play.Client.POSITION_LOOK) {
+            @Override
+            public void onPacketReceiving(PacketEvent event) {
+                PacketContainer packet = event.getPacket();
+                handleRotate(event, packet);
+            }
+        });
+        protocolManager.addPacketListener(new PacketAdapter(instance, PacketType.Play.Client.POSITION) {
+            @Override
+            public void onPacketReceiving(PacketEvent event) {
+                PacketContainer packet = event.getPacket();
+                handleRotate(event, packet);
+            }
+        });
+    }
+
+    private void handleRotate(PacketEvent event, PacketContainer packet) {
+        boolean hasLook = false;
+        boolean hasPos = false;
+        double x = 0;
+        double y = 0;
+        double z = 0;
+        float yaw = 0;
+        float pitch = 0;
+        if (packet.getDoubles().size() != 0 && packet.getDoubles().getValues().stream().mapToDouble(Double::doubleValue).sum() != 0) {
+            hasPos = true;
+            x = packet.getDoubles().read(0);
+            y = packet.getDoubles().read(1);
+            z = packet.getDoubles().read(2);
+        }
+        if (packet.getFloat().size() != 0 && packet.getFloat().getValues().stream().mapToDouble(Float::doubleValue).sum() != 0) {
+            hasLook = true;
+            yaw = packet.getFloat().read(0);
+            //yaw = (yaw + 180) % 360 - 180;
+            pitch = packet.getFloat().read(1);
+        }
+        playerPosRots.putIfAbsent(event.getPlayer(), new PlayerPosRot(x, y, z, yaw, pitch));
+        PlayerPosRot oldPpr = playerPosRots.get(event.getPlayer());
+        yaw = hasLook ? packet.getFloat().read(0) : oldPpr.yaw;
+        pitch = hasLook ? packet.getFloat().read(1) : oldPpr.pitch;
+        if (hasPos) {
+            Vector moveDir = new Vector(x - oldPpr.x, y - oldPpr.y, z - oldPpr.z);
+            float oldYaw = oldPpr.yaw;
+            // convert direction to yaw
+            float moveYaw = (float) -Math.toDegrees(Math.atan2(moveDir.getX(), moveDir.getZ()));
+            float lookYaw = event.getPlayer().getLocation().getYaw();
+            float lookDiff = moveYaw - lookYaw;
+            // set moveYaw to have a maximum difference of 45 to lookYaw
+            if (lookDiff > 45) {
+                moveYaw = lookYaw - 45 + lookDiff;
+            } else if (lookDiff < -45) {
+                moveYaw = lookYaw + 45 + lookDiff;
+            }
+            float diff = moveYaw - oldYaw;
+
+            // multiply moveYaw by so many times that its difference to oldYaw is less than 360
+            while (diff < -180) {
+                moveYaw += 360;
+                diff = moveYaw - oldYaw;
+            }
+            while (diff > 180) {
+                moveYaw -= 360;
+                diff = moveYaw - oldYaw;
+            }
+
+            if (moveDir.length() >= 0.15) {
+                if (diff > 5) {
+                    float newYaw = (oldYaw - 5 + diff);
+                    yaw = newYaw;
+                    oldPpr = new PlayerPosRot(x, y, z, newYaw, pitch);
+                    playerPosRots.put(event.getPlayer(), oldPpr);
+                } else if (diff < -5) {
+                    float newYaw = (oldYaw + 5 + diff);
+                    yaw = newYaw;
+                    oldPpr = new PlayerPosRot(x, y, z, newYaw, pitch);
+                    playerPosRots.put(event.getPlayer(), oldPpr);
+                }
+            }
+        }
+        if (true) {
+            float oldYaw = oldPpr.yaw;
+            float diff = yaw - oldYaw;
+            if (diff > 45) {
+                float newYaw = (oldYaw - 45 + diff);
+                //newYaw = (newYaw + 180) % 360 - 180;
+                oldPpr = new PlayerPosRot(oldPpr.x, oldPpr.y, oldPpr.z, newYaw, pitch);
+                playerPosRots.put(event.getPlayer(), oldPpr);
+            } else if (diff < -45) {
+                float newYaw = (oldYaw + 45 + diff);
+                //newYaw = (newYaw + 180) % 360 - 180;
+                oldPpr = new PlayerPosRot(oldPpr.x, oldPpr.y, oldPpr.z, newYaw, pitch);
+                playerPosRots.put(event.getPlayer(), oldPpr);
+            }
+        }
+    }
+
+    private void sendLook(PacketEvent event, PacketContainer packet, float yaw, float pitch) {
+        new BukkitRunnable() {
+            float yaw2 = yaw;
+            float pitch2 = pitch;
+
+            @Override
+            public void run() {
+                yaw2 += 90;
+                pitch2 += 0;
+                PacketContainer pack2 = protocolManager.createPacket(PacketType.Play.Server.ENTITY_HEAD_ROTATION);
+                pack2.getIntegers().write(0, packet.getIntegers().read(0));
+                pack2.getBytes().write(0, (byte) (yaw2 * 256.0 / 360.0));
+                protocolManager.sendServerPacket(event.getPlayer(), pack2);
+                PacketContainer pack = protocolManager.createPacket(PacketType.Play.Server.ENTITY_LOOK);
+                pack.getIntegers().write(0, packet.getIntegers().read(0));
+                pack.getBytes().write(0, (byte) (yaw2 * 256.0 / 360.0));
+                pack.getBytes().write(1, (byte) (pitch2 * 256.0 / 360.0));
+                protocolManager.sendServerPacket(event.getPlayer(), pack);
+            }
+        };//.runTaskLater(this, 1);
     }
 
     private void preparePlayerInfoPacket(PacketEvent event) {
